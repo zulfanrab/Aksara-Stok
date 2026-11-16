@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Item, Category, Person, Location, Unit, Project } from "@/types/inventory";
+export type { Item, Category, Person, Location, Unit, Project };
 
 export interface StockMovementWithDetails {
   id: string;
@@ -29,6 +30,53 @@ export interface UnitConversion {
   factor: number;
   from_unit?: { id: string; name: string } | null;
   to_unit?: { id: string; name: string } | null;
+}
+
+export interface Profile {
+  id: string;
+  full_name: string;
+  role: "STAFF" | "AHLI" | "ADMIN" | "MANAJER";
+  person_id: string | null;
+  person?: { name: string; position: string; employee_code: string } | null;
+}
+
+export interface StockTakeWithDetails {
+  id: string;
+  name: string;
+  scope: Record<string, unknown> | null;
+  status: "DRAFT" | "COUNTING" | "REVIEW" | "APPROVED" | "POSTED";
+  cutoff_at: string;
+  started_by: string | null;
+  approved_by: string | null;
+  posted_at: string | null;
+  created_at: string;
+  starter?: { id: string; full_name: string; role: string } | null;
+  approver?: { id: string; full_name: string; role: string } | null;
+  lines_count?: number;
+  counted_count?: number;
+}
+
+export interface StockTakeLineWithItem {
+  id: string;
+  stock_take_id: string;
+  item_id: string;
+  system_qty: number;
+  counted_qty: number | null;
+  recount_qty: number | null;
+  counted_by: string | null;
+  counted_by_person_id: string | null;
+  reason: string | null;
+  photo_path: string | null;
+  status: string;
+  item?: {
+    id: string;
+    code: string;
+    name: string;
+    kind: string;
+    unit?: { name: string };
+    category?: { name: string; code: string };
+  };
+  counter?: { id: string; name: string; position: string };
 }
 
 export async function getCategories(): Promise<Category[]> {
@@ -110,6 +158,20 @@ export async function getPeople(search?: string): Promise<Person[]> {
   return data || [];
 }
 
+export async function getProfiles(): Promise<Profile[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, person_id, person:people(name, position, employee_code)")
+    .order("full_name");
+
+  if (error) {
+    console.error("Error fetching profiles:", error);
+    return [];
+  }
+  return (data as unknown as Profile[]) || [];
+}
+
 export async function getItems(options?: {
   categoryCode?: string;
   search?: string;
@@ -156,17 +218,13 @@ export async function getItems(options?: {
     const s = options.search.trim().toLowerCase();
     items = items.filter(
       (item) =>
-        item.name.toLowerCase().includes(q_clean(s)) ||
-        item.code.toLowerCase().includes(q_clean(s)) ||
-        (item.legacy_code && item.legacy_code.toLowerCase().includes(q_clean(s)))
+        item.name.toLowerCase().includes(s) ||
+        item.code.toLowerCase().includes(s) ||
+        (item.legacy_code && item.legacy_code.toLowerCase().includes(s))
     );
   }
 
   return items;
-}
-
-function q_clean(val: string): string {
-  return val.trim().toLowerCase();
 }
 
 export async function getUnitConversions(itemId?: string): Promise<UnitConversion[]> {
@@ -242,4 +300,122 @@ export async function getCurrentStockMap(): Promise<Record<string, number>> {
     else if (m.type === "REVERSAL") map[m.item_id] = current - Number(m.qty);
   }
   return map;
+}
+
+export async function getStockTakes(): Promise<StockTakeWithDetails[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("stock_takes")
+    .select(`
+      id,
+      name,
+      scope,
+      status,
+      cutoff_at,
+      started_by,
+      approved_by,
+      posted_at,
+      created_at,
+      starter:profiles!started_by(id, full_name, role),
+      approver:profiles!approved_by(id, full_name, role),
+      lines:stock_take_lines(id, counted_qty)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching stock takes:", error);
+    return [];
+  }
+
+  return (
+    data?.map((st) => {
+      const lines = (st.lines as Array<{ id: string; counted_qty: number | null }>) || [];
+      const countedCount = lines.filter((l) => l.counted_qty !== null).length;
+      return {
+        id: st.id,
+        name: st.name,
+        scope: st.scope as Record<string, unknown> | null,
+        status: st.status,
+        cutoff_at: st.cutoff_at,
+        started_by: st.started_by,
+        approved_by: st.approved_by,
+        posted_at: st.posted_at,
+        created_at: st.created_at,
+        starter: st.starter as unknown as { id: string; full_name: string; role: string } | null,
+        approver: st.approver as unknown as { id: string; full_name: string; role: string } | null,
+        lines_count: lines.length,
+        counted_count: countedCount,
+      };
+    }) || []
+  );
+}
+
+export async function getStockTakeById(id: string): Promise<{
+  stockTake: StockTakeWithDetails | null;
+  lines: StockTakeLineWithItem[];
+}> {
+  const supabase = createAdminClient();
+  const { data: st, error: stError } = await supabase
+    .from("stock_takes")
+    .select(`
+      id,
+      name,
+      scope,
+      status,
+      cutoff_at,
+      started_by,
+      approved_by,
+      posted_at,
+      created_at,
+      starter:profiles!started_by(id, full_name, role),
+      approver:profiles!approved_by(id, full_name, role)
+    `)
+    .eq("id", id)
+    .single();
+
+  if (stError || !st) {
+    console.error("Error fetching stock take:", stError);
+    return { stockTake: null, lines: [] };
+  }
+
+  const { data: lines, error: linesError } = await supabase
+    .from("stock_take_lines")
+    .select(`
+      id,
+      stock_take_id,
+      item_id,
+      system_qty,
+      counted_qty,
+      recount_qty,
+      counted_by,
+      counted_by_person_id,
+      reason,
+      photo_path,
+      status,
+      item:items(
+        id,
+        code,
+        name,
+        kind,
+        unit:units(name),
+        category:categories(name, code)
+      ),
+      counter:people!counted_by_person_id(id, name, position)
+    `)
+    .eq("stock_take_id", id)
+    .order("created_at", { ascending: true });
+
+  if (linesError) {
+    console.error("Error fetching stock take lines:", linesError);
+  }
+
+  return {
+    stockTake: {
+      ...st,
+      scope: st.scope as Record<string, unknown> | null,
+      starter: st.starter as unknown as { id: string; full_name: string; role: string } | null,
+      approver: st.approver as unknown as { id: string; full_name: string; role: string } | null,
+    },
+    lines: (lines as unknown as StockTakeLineWithItem[]) || [],
+  };
 }

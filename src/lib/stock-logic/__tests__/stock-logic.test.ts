@@ -300,3 +300,49 @@ describe("Siklus Catat Keluar, Catat Masuk, dan Pembalik (REVERSAL)", () => {
     expect(calculateCurrentStock(movements)).toBe(20);
   });
 });
+
+describe("Siklus Posting Penyesuaian Opname (ADJUST Movements)", () => {
+  it("membuat mutasi ADJUST positif dan negatif secara presisi sehingga saldo sistem sama dengan fisik", () => {
+    // Skenario:
+    // Item A: saldo sistem 100, fisik dihitung 95 (kurang 5) -> ADJUST -5
+    // Item B: saldo sistem 20, fisik dihitung 23 (lebih 3) -> ADJUST +3
+    // Item C: saldo sistem 50, fisik dihitung 50 (cocok) -> tidak butuh ADJUST
+
+    const items = [
+      { id: "item-a", system_qty: 100, counted_qty: 95, recount_qty: null },
+      { id: "item-b", system_qty: 20, counted_qty: 18, recount_qty: 23 }, // menggunakan recount_qty
+      { id: "item-c", system_qty: 50, counted_qty: 50, recount_qty: null },
+    ];
+
+    const adjustments = items
+      .map((item) => {
+        const finalCount = item.recount_qty !== null ? item.recount_qty : item.counted_qty;
+        const diff = finalCount - item.system_qty;
+        return {
+          item_id: item.id,
+          diff,
+        };
+      })
+      .filter((adj) => adj.diff !== 0);
+
+    expect(adjustments).toHaveLength(2);
+    expect(adjustments[0]).toEqual({ item_id: "item-a", diff: -5 });
+    expect(adjustments[1]).toEqual({ item_id: "item-b", diff: 3 });
+
+    // Verifikasi saldo baru setelah ADJUST:
+    // Item A: 100 + (-5) = 95 (sesuai fisik)
+    const movementsA: StockMovementRecord[] = [
+      { id: "mov-a-init", item_id: "item-a", type: "IN", qty: 100 },
+      { id: "mov-a-adj", item_id: "item-a", type: "ADJUST", qty: adjustments[0].diff },
+    ];
+    expect(calculateCurrentStock(movementsA)).toBe(95);
+
+    // Item B: 20 + 3 = 23 (sesuai fisik recount)
+    const movementsB: StockMovementRecord[] = [
+      { id: "mov-b-init", item_id: "item-b", type: "IN", qty: 20 },
+      { id: "mov-b-adj", item_id: "item-b", type: "ADJUST", qty: adjustments[1].diff },
+    ];
+    expect(calculateCurrentStock(movementsB)).toBe(23);
+  });
+});
+

@@ -54,6 +54,12 @@ export function Navbar() {
             Riwayat
           </Link>
           <Link
+            href="/opname"
+            className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+          >
+            Opname
+          </Link>
+          <Link
             href="/karyawan"
             className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
           >
@@ -61,7 +67,7 @@ export function Navbar() {
           </Link>
           <span className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-[var(--emerald-50)] border border-[var(--emerald-500)]/20 text-[var(--emerald-700)] text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[var(--emerald-500)]" />
-            Langkah 3 Aktif
+            Langkah 4 Aktif
           </span>
         </nav>
       </div>

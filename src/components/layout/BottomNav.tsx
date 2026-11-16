@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Package, ArrowUpRight, ArrowDownLeft, History } from "lucide-react";
+import { Home, Package, ArrowUpRight, ClipboardList, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNav() {
@@ -12,7 +12,7 @@ export function BottomNav() {
     { label: "Beranda", href: "/", icon: Home },
     { label: "Barang", href: "/barang", icon: Package },
     { label: "Keluar", href: "/keluar", icon: ArrowUpRight, isCenter: true },
-    { label: "Masuk", href: "/masuk", icon: ArrowDownLeft },
+    { label: "Opname", href: "/opname", icon: ClipboardList },
     { label: "Riwayat", href: "/riwayat", icon: History },
   ];
 
