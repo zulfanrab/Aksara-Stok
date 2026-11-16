@@ -1,342 +1,202 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-  CheckCircle2,
-  ShieldCheck,
-  ArrowRight,
   ArrowUpRight,
   ArrowDownLeft,
-  History,
   ClipboardList,
-  FileText,
-  Clock,
-  Layers,
-  Lock,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { ParallelRunBanner } from "@/components/dashboard/ParallelRunBanner";
 import {
-  getMovements,
   getItems,
-  getPeople,
   getCurrentStockMap,
   getStockTakes,
 } from "@/lib/services/inventory";
 
 export default async function Home() {
-  const [items, people, recentMovements, stockMap, stockTakes] = await Promise.all([
+  const [items, stockMap, stockTakes] = await Promise.all([
     getItems(),
-    getPeople(),
-    getMovements(5),
     getCurrentStockMap(),
     getStockTakes(),
   ]);
 
-  const activeOpname = stockTakes.find(
+  // Saring sesi uji coba: hanya yang mengandung kata 'simulasi' (sesuai Butir 1)
+  const operationalTakes = stockTakes.filter(
+    (st) => !st.name.toLowerCase().includes("simulasi")
+  );
+
+  const activeOpname = operationalTakes.find(
     (st) => st.status === "COUNTING" || st.status === "REVIEW" || st.status === "DRAFT"
   );
 
-  const mandatoryRules = [
-    {
-      title: "Ledger Append-Only",
-      desc: "Stok adalah turunan stock_movements. UPDATE dan DELETE ditolak mutlak oleh Trigger Postgres.",
-      verified: true,
-    },
-    {
-      title: "Klien Berbasis UUID",
-      desc: "Setiap penulisan pergerakan membawa UUID v4 dari klien untuk idempotensi offline.",
-      verified: true,
-    },
-    {
-      title: "Aturan Penyetuju != Penghitung",
-      desc: "Penghitung dilarang keras menyetujui hitungannya sendiri. Ditegakkan langsung di level DB Trigger.",
-      verified: true,
-    },
-    {
-      title: "Pemisahan People & Profiles",
-      desc: "Tabel people (13 pengguna barang) tidak memiliki akun login. Akun login hanya ada di profiles.",
-      verified: true,
-    },
-    {
-      title: "Hitung Buta (Blind Count)",
-      desc: "Petugas lapangan tidak dapat melihat saldo sistem saat menghitung fisik untuk mencegah bias.",
-      verified: true,
-    },
-    {
-      title: "Design Tokens Bagian 9",
-      desc: "Emerald (#059669), Gold (#B48A25), Cetak (#299775), Slate, dan teks antarmuka berbahasa Indonesia.",
-      verified: true,
-    },
-    {
-      title: "Rekapitulasi & Ekspor Laporan",
-      desc: "Ekspor lembar kerja Excel (.xlsx), dokumen resmi Word (.docx), dan cetak PDF A4 berkop dinas.",
-      verified: true,
-    },
-    {
-      title: "36 Unit Tests Terverifikasi",
-      desc: "Logika ledger stok, konversi satuan, toleransi opname, aturan approver != counter, outbox offline, bukti foto, dan rekonsiliasi lolos 100%.",
-      verified: true,
-    },
-  ];
+  // Hitung barang habis dan menipis (baris kalibrasi ditiadakan sesuai Butir 3)
+  let habisCount = 0;
+  let menipisCount = 0;
+
+  for (const item of items) {
+    const currentStock = stockMap[item.id] || 0;
+    if (currentStock <= 0) {
+      habisCount++;
+    } else if (item.min_stock !== null && item.min_stock !== undefined && currentStock <= item.min_stock) {
+      menipisCount++;
+    }
+  }
+
+  const needsAttention = habisCount > 0 || menipisCount > 0;
+
+  // Tujuan tombol Mulai Hitung
+  const opnameTargetUrl = activeOpname
+    ? activeOpname.status === "COUNTING"
+      ? `/opname/${activeOpname.id}/hitung`
+      : `/opname/${activeOpname.id}`
+    : "/opname";
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--slate-700)] flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-5 pb-24 md:pb-12">
-        {/* Parallel Run Banner (Langkah 9) */}
-        <ParallelRunBanner />
+      <main className="flex-1 max-w-lg w-full mx-auto p-4 sm:p-6 space-y-5 pb-24 md:pb-12">
+        {/* Header Identitas Ringkas */}
+        <div className="flex items-center gap-3 pt-1">
+          <div className="relative w-11 h-11 rounded-2xl overflow-hidden shadow-xs shrink-0 border border-slate-200 bg-slate-900">
+            <Image
+              src="/logo.webp"
+              alt="Logo Aksara Stok"
+              width={44}
+              height={44}
+              className="w-full h-full object-cover"
+              priority
+            />
+          </div>
+          <div>
+            <h1 className="text-base font-bold text-slate-900 tracking-tight leading-tight">
+              PT Aksara Riksa Perdana
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              Aksara Stok &bull; Inventaris & Opname
+            </p>
+          </div>
+        </div>
 
-        {/* Hero Card */}
-        <div className="bg-white rounded-2xl p-5 sm:p-7 border border-[var(--slate-200)] shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-emerald-800 border border-emerald-200 text-xs font-bold">
-                <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-                Langkah 9 Aktif: Peluncuran Paralel (Excel & PWA 2 Minggu) Menuju Penguncian Arsip
+        {/* TIGA TOMBOL UTAMA (BESAR & JELAS, MIN 56 PX) */}
+        <div className="space-y-3">
+          {/* 1. Catat Keluar */}
+          <Link
+            href="/keluar"
+            className="flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-white border-2 border-slate-200 hover:border-emerald-600 shadow-xs hover:shadow-sm active:scale-98 touch-target transition-all min-h-[64px]"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                <ArrowUpRight className="w-6 h-6 stroke-[2.5]" />
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                PT Aksara Riksa Perdana &mdash; Stock Opname & Inventaris
+              <div className="text-left">
+                <span className="text-base font-bold text-slate-900 block leading-tight">
+                  Catat Keluar
+                </span>
+                <span className="text-xs text-slate-500 font-medium mt-0.5 block">
+                  Barang diambil atau dipakai kerja
+                </span>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+          </Link>
+
+          {/* 2. Catat Masuk */}
+          <Link
+            href="/masuk"
+            className="flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-white border-2 border-slate-200 hover:border-blue-600 shadow-xs hover:shadow-sm active:scale-98 touch-target transition-all min-h-[64px]"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+                <ArrowDownLeft className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="text-left">
+                <span className="text-base font-bold text-slate-900 block leading-tight">
+                  Catat Masuk
+                </span>
+                <span className="text-xs text-slate-500 font-medium mt-0.5 block">
+                  Pembelian barang baru dari supplier
+                </span>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-slate-400 shrink-0" />
+          </Link>
+
+          {/* 3. Mulai Hitung (Stock Opname) */}
+          <Link
+            href={opnameTargetUrl}
+            className="flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white shadow-sm hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] active:scale-98 touch-target transition-all min-h-[64px]"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center shrink-0">
+                <ClipboardList className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="text-left">
+                <span className="text-base font-bold text-white block leading-tight">
+                  {activeOpname ? "Lanjutkan Hitung" : "Mulai Hitung"}
+                </span>
+                <span className="text-xs text-emerald-100 font-medium mt-0.5 block">
+                  {activeOpname ? activeOpname.name : "Stock opname fisik di gudang"}
+                </span>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-emerald-200 shrink-0" />
+          </Link>
+        </div>
+
+        {/* SATU KARTU TUNGGAL "PERLU PERHATIAN" */}
+        {needsAttention ? (
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border-2 border-amber-300 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <h2 className="text-xs font-bold uppercase tracking-wider">
+                Perlu Perhatian
               </h2>
-              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-2xl">
-                Sistem manajemen inventaris lengkap: rekapitulasi stok, analisis pemakaian 13 pengguna barang (`people`), analisis proyek, serta ekspor dokumen dinas format Excel (.xlsx), Word (.docx), dan PDF A4 resmi.
-              </p>
             </div>
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-sm shrink-0 border border-slate-200 bg-slate-900 hidden sm:block">
-              <Image
-                src="/logo.webp"
-                alt="Logo Aksara Stok"
-                width={80}
-                height={80}
-                className="w-full h-full object-cover"
-                priority
-              />
-            </div>
-          </div>
 
-          {/* Banner Sesi Opname Aktif jika ada */}
-          {activeOpname && (
-            <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0">
-                  <ClipboardList className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-amber-900">{activeOpname.name}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-800">
-                      {activeOpname.status}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-amber-700 block">
-                    Progress: {activeOpname.counted_count} / {activeOpname.lines_count} item terhitung
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {activeOpname.status === "COUNTING" && (
-                  <Link
-                    href={`/opname/${activeOpname.id}/hitung`}
-                    className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs"
-                  >
-                    Lanjutkan Hitung Buta &rarr;
-                  </Link>
-                )}
+            <div className="space-y-2">
+              {habisCount > 0 && (
                 <Link
-                  href={`/opname/${activeOpname.id}`}
-                  className="px-3 py-2 rounded-lg bg-white border border-amber-300 text-amber-900 text-xs font-semibold shadow-xs hover:bg-amber-100/50"
+                  href="/barang?filter=HABIS"
+                  className="flex items-center justify-between p-3 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100/70 text-rose-900 touch-target transition-colors"
                 >
-                  Review Selisih
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* 4 Tombol Aksi Utama */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-            <Link
-              href="/opname"
-              className="flex flex-col justify-between p-4 rounded-xl bg-gradient-to-br from-[var(--emerald-600)] to-[var(--emerald-700)] text-white shadow-sm hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] active:scale-98 touch-target transition-all"
-            >
-              <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center mb-3">
-                <ClipboardList className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <span className="text-[11px] text-white/95 font-semibold block">Sesi Fisik</span>
-                <span className="text-sm sm:text-base font-bold text-white">Stock Opname</span>
-              </div>
-            </Link>
-
-            <Link
-              href="/keluar"
-              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xs hover:border-emerald-500/50 hover:bg-slate-50 active:scale-98 touch-target transition-all"
-            >
-              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3">
-                <ArrowUpRight className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 font-semibold block">&lt; 10 Detik</span>
-                <span className="text-sm sm:text-base font-bold text-slate-900">Catat Keluar</span>
-              </div>
-            </Link>
-
-            <Link
-              href="/masuk"
-              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xs hover:border-blue-500/50 hover:bg-slate-50 active:scale-98 touch-target transition-all"
-            >
-              <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center mb-3">
-                <ArrowDownLeft className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 font-semibold block">Konversi Beli</span>
-                <span className="text-sm sm:text-base font-bold text-slate-900">Catat Masuk</span>
-              </div>
-            </Link>
-
-            <Link
-              href="/riwayat"
-              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xs hover:bg-slate-50 active:scale-98 touch-target transition-all"
-            >
-              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center mb-3">
-                <History className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 font-semibold block">Audit Ledger</span>
-                <span className="text-sm sm:text-base font-bold text-slate-900">Riwayat Mutasi</span>
-              </div>
-            </Link>
-          </div>
-
-          {/* Quick Metrics Grid Kontras Tinggi */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-            <Link href="/barang" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
-              <span className="text-xs text-slate-600 font-bold block">Master Barang</span>
-              <span className="text-xl font-bold text-slate-900 num-mono">{items.length} Item</span>
-              <span className="text-[11px] text-emerald-700 font-bold block mt-0.5">Buka Katalog &rarr;</span>
-            </Link>
-            <Link href="/karyawan" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
-              <span className="text-xs text-slate-600 font-bold block">Pengguna Barang</span>
-              <span className="text-xl font-bold text-slate-900 num-mono">{people.length} Orang</span>
-              <span className="text-[11px] text-slate-800 font-bold block mt-0.5">Tabel people &rarr;</span>
-            </Link>
-            <Link href="/opname" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
-              <span className="text-xs text-slate-600 font-bold block">Sesi Opname</span>
-              <span className="text-xl font-bold text-slate-900 num-mono">{stockTakes.length} Sesi</span>
-              <span className="text-[11px] text-slate-800 font-bold block mt-0.5">Lihat Sesi &rarr;</span>
-            </Link>
-            <Link href="/laporan" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
-              <span className="text-xs text-slate-600 font-bold block">Laporan & Audit</span>
-              <span className="text-xl font-bold text-emerald-700 num-mono">3 Format</span>
-              <span className="text-[11px] text-emerald-700 font-bold block mt-0.5">Excel &bull; Word &bull; PDF &rarr;</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Aktivitas Terbaru (Bagian 6 Blueprint) */}
-        <div className="bg-white rounded-2xl p-5 border border-[var(--slate-200)] shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[var(--slate-900)] flex items-center gap-2">
-              <History className="w-4 h-4 text-[var(--emerald-600)]" />
-              <span>Aktivitas Pergerakan Terbaru</span>
-            </h3>
-            <Link href="/riwayat" className="text-xs font-semibold text-[var(--emerald-700)] hover:underline">
-              Lihat Semua &rarr;
-            </Link>
-          </div>
-
-          {recentMovements.length === 0 ? (
-            <div className="p-6 rounded-xl bg-[var(--bg-canvas)] text-center text-xs text-slate-500 font-medium border border-dashed border-slate-200">
-              Belum ada mutasi stok hari ini. Klik <strong>Catat Keluar</strong> atau <strong>Catat Masuk</strong> untuk mencatat mutasi pertama Anda.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {recentMovements.map((mov) => (
-                <div key={mov.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2.5">
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-bold text-[10px] num-mono ${
-                        mov.type === "IN"
-                          ? "bg-[var(--emerald-50)] text-[var(--emerald-700)]"
-                          : mov.type === "OUT"
-                          ? "bg-[var(--sky-50)] text-[var(--sky-700)]"
-                          : mov.type === "ADJUST"
-                          ? "bg-purple-50 text-purple-700"
-                          : "bg-[var(--rose-50)] text-[var(--rose-700)]"
-                      }`}
-                    >
-                      {mov.type}
-                    </span>
-                    <div>
-                      <span className="font-bold text-slate-900">{mov.item?.name}</span>
-                      <span className="text-slate-500 font-medium ml-1">
-                        {mov.person ? `• oleh ${mov.person.name}` : ""}
-                        {mov.ref_type === "STOCK_TAKE" ? " • Hasil Opname" : ""}
-                      </span>
-                    </div>
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0" />
+                    <span className="text-xs font-semibold">Barang Habis</span>
                   </div>
-                  <span className="num-mono font-bold text-slate-900">
-                    {mov.type === "OUT" ? `-${mov.qty}` : mov.qty > 0 ? `+${mov.qty}` : `${mov.qty}`} {mov.item?.unit?.name}
-                  </span>
-                </div>
-              ))}
+                  <div className="flex items-center gap-1.5 font-bold text-xs num-mono text-rose-700">
+                    <span>{habisCount} barang</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </div>
+                </Link>
+              )}
+
+              {menipisCount > 0 && (
+                <Link
+                  href="/barang?filter=MENIPIS"
+                  className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100/70 text-amber-900 touch-target transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-xs font-semibold">Stok Menipis</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-bold text-xs num-mono text-amber-800">
+                    <span>{menipisCount} barang</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </div>
+                </Link>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* 8 Aturan Wajib Checklist */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-          <h3 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-[var(--emerald-600)]" />
-            Kepatuhan 8 Aturan Wajib Blueprint
-          </h3>
-          <p className="text-xs text-slate-500 font-medium mb-4">
-            Terverifikasi pada arsitektur kode, migrasi database, dan pengujian unit.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {mandatoryRules.map((rule, idx) => (
-              <div
-                key={idx}
-                className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-start gap-3 shadow-2xs"
-              >
-                <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">{rule.title}</h4>
-                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{rule.desc}</p>
-                </div>
-              </div>
-            ))}
           </div>
-        </div>
-
-        {/* Roadmap Langkah Selanjutnya */}
-        <div className="bg-white rounded-2xl p-5 border-2 border-emerald-500/30 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
-                Siklus 9 Langkah Blueprint Selesai & Terverifikasi
-              </span>
-              <h4 className="text-base font-bold text-slate-900 mt-0.5">
-                Langkah 9: Masa Transisi Paralel Aktif Menuju Arsip Excel Statis
-              </h4>
-              <p className="text-xs text-slate-700 mt-1 leading-relaxed">
-                Aplikasi PWA Aksara Stok kini resmi berjalan di lingkungan produksi Vercel & Supabase. Setelah 14 hari pencatatan ganda tanpa selisih, Excel lama resmi dikunci sebagai arsip baca-saja (*read-only*).
-              </p>
-            </div>
-            <Link
-              href="/laporan"
-              className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm touch-target shrink-0"
-            >
-              <span>Ekspor Rekapitulasi</span>
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Link>
+        ) : (
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-3 text-emerald-900 font-semibold text-sm">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>Semua stok aman.</span>
           </div>
-        </div>
-
-
-
+        )}
       </main>
 
       <BottomNav />
