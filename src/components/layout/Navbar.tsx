@@ -1,11 +1,12 @@
 import Link from "next/link";
 import Image from "next/image";
+import { HelpCircle } from "lucide-react";
 import { OfflineStatusBanner } from "./OfflineStatusBanner";
 import { NavbarStatusPill } from "./NavbarStatusPill";
 
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[var(--slate-200)] shadow-xs">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
       {/* Garis Aksen Emas Sesuai Bagian 9 */}
       <div className="h-1 bg-gradient-to-r from-[var(--gold-light)] via-[var(--gold-main)] to-[var(--gold-shadow)]" />
 
@@ -34,59 +35,69 @@ export function Navbar() {
           </div>
         </Link>
 
-        {/* Status indicator on mobile & desktop */}
+        {/* Status indicator & Panduan on mobile & desktop */}
         <div className="flex items-center gap-2">
           <NavbarStatusPill />
+
+          {/* Tombol Panduan (?) Selalu Terlihat di Semua Layar */}
+          <Link
+            href="/panduan"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 transition-colors shadow-2xs touch-target"
+            title="Buka Panduan Aplikasi"
+            aria-label="Panduan Aplikasi"
+          >
+            <HelpCircle className="w-4 h-4 stroke-[2.3]" />
+          </Link>
 
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-1 text-sm font-medium ml-2">
             <Link
               href="/"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
               Beranda
             </Link>
             <Link
               href="/barang"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
-              Master Barang
+              Barang
             </Link>
             <Link
               href="/keluar"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
               Catat Keluar
             </Link>
             <Link
               href="/masuk"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
               Catat Masuk
             </Link>
             <Link
-              href="/riwayat"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
-            >
-              Riwayat
-            </Link>
-            <Link
               href="/opname"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
               Opname
             </Link>
             <Link
               href="/laporan"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
               Laporan
             </Link>
             <Link
               href="/karyawan"
-              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
             >
               Karyawan
+            </Link>
+            <Link
+              href="/riwayat"
+              className="px-3 py-1.5 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 transition-colors font-semibold"
+            >
+              Riwayat
             </Link>
           </nav>
         </div>
