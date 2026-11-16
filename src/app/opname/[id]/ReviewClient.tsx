@@ -275,7 +275,7 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] text-white text-xs font-bold shadow-xs touch-target transition-all flex items-center gap-2"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Posting ADJUST & Selesaikan Opname</span>
+                  <span>Bukukan Penyesuaian & Selesaikan</span>
                 </button>
               ) : null}
             </div>

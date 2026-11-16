@@ -6,7 +6,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 
 export const metadata = {
   title: "Review Sesi Stock Opname | PT Aksara Riksa Perdana",
-  description: "Review selisih, toleransi, otorisasi persetujuan dan posting ADJUST",
+  description: "Review selisih hitung fisik, persetujuan, dan penyesuaian stok",
 };
 
 export default async function OpnameDetailPage({

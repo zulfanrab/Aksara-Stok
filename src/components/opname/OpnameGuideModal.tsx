@@ -52,7 +52,7 @@ export function OpnameGuideModal() {
                     1
                   </span>
                   <h4 className="font-bold text-sm text-[var(--slate-900)]">
-                    Hitung Buta (Blind Count) di HP
+                    Hitung Fisik di HP
                   </h4>
                 </div>
                 <p className="text-slate-600 leading-relaxed pl-7">
@@ -76,7 +76,7 @@ export function OpnameGuideModal() {
                   </h4>
                 </div>
                 <p className="text-slate-600 leading-relaxed pl-7">
-                  Setelah hitung buta selesai, sistem membandingkan fisik vs sistem:
+                  Setelah hitung fisik selesai, sistem membandingkan fisik vs sistem:
                 </p>
                 <ul className="list-disc pl-11 text-[11px] text-slate-500 space-y-0.5">
                   <li><strong>Toleransi 5% / 1 unit</strong> untuk ATK, kebersihan, konsumsi (lolos otomatis).</li>
@@ -92,15 +92,15 @@ export function OpnameGuideModal() {
                     3
                   </span>
                   <h4 className="font-bold text-sm text-[var(--slate-900)]">
-                    Pemisahan Tugas & Posting ADJUST ke Ledger
+                    Pemisahan Tugas & Penyesuaian Stok
                   </h4>
                 </div>
                 <p className="text-slate-600 leading-relaxed pl-7">
-                  Integritas laporan ditegakkan secara absolut di level database:
+                  Integritas laporan ditegakkan secara absolut:
                 </p>
                 <ul className="list-disc pl-11 text-[11px] text-slate-500 space-y-0.5">
-                  <li><strong>Penyetuju &ne; Penghitung:</strong> Penghitung dilarang keras menyetujui hitungannya sendiri. Persetujuan dilakukan oleh Direktur (Habsi Gufira P., S.AP.).</li>
-                  <li>Setelah disetujui, klik <strong>Posting ADJUST</strong> untuk menerbitkan mutasi penyesuaian ke ledger append-only.</li>
+                  <li><strong>Penyetuju &ne; Penghitung:</strong> Yang menghitung tidak bisa menyetujui hitungannya sendiri. Persetujuan akhir oleh Direktur.</li>
+                  <li>Setelah disetujui, klik <strong>Bukukan Penyesuaian</strong> untuk memperbarui saldo stok resmi.</li>
                   <li>Cetak atau unduh <strong>Berita Acara Opname Resmi PDF</strong> format A4 bertanda tangan 3 pihak.</li>
                 </ul>
               </div>

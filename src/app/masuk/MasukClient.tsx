@@ -258,8 +258,8 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
         </div>
         <p className="text-xs text-[var(--slate-400)] leading-relaxed">
           {successData.isOffline
-            ? "Tercatat di antrean IndexedDB offline dengan UUID v4 idempoten. Akan tersinkronisasi otomatis begitu perangkat mendeteksi koneksi."
-            : "Tercatat di ledger append-only stock_movements & riwayat harga otomatis diperbarui."}
+            ? "Data tersimpan di antrean offline HP. Akan disinkronkan otomatis saat perangkat terhubung ke internet."
+            : "Penerimaan barang telah berhasil dicatat dan riwayat harga otomatis diperbarui."}
         </p>
 
 
@@ -554,7 +554,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
               : "bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] active:scale-98"
           )}
         >
-          {isPending ? "Menyimpan ke Ledger..." : `Simpan Penerimaan (+${qtyBase} ${baseUnitName})`}
+          {isPending ? "Menyimpan..." : `Simpan Penerimaan (+${qtyBase} ${baseUnitName})`}
         </button>
       </div>
 

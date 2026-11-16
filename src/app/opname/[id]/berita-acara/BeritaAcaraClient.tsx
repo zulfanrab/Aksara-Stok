@@ -130,7 +130,7 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
         {/* TABEL RINCIAN SELISIH */}
         <div className="space-y-2">
           <h3 className="text-xs font-bold uppercase text-slate-800 tracking-wider">
-            Daftar Rincian Selisih Fisik & Penyesuaian Ledger (ADJUST)
+            Daftar Rincian Selisih Fisik & Penyesuaian Stok
           </h3>
 
           {discrepancyLines.length === 0 ? (
@@ -181,8 +181,7 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
         {/* CATATAN PENUTUP */}
         <p className="text-[11px] text-slate-600 leading-relaxed text-justify">
           Demikian Berita Acara ini disusun secara objektif dan sebenarnya berdasarkan hasil penghitungan fisik di lokasi.
-          Seluruh selisih yang tercatat telah disesuaikan pada buku besar persediaan (append-only ledger) melalui pergerakan
-          mutasi ADJUST.
+          Seluruh selisih yang tercatat telah disesuaikan pada buku persediaan melalui transaksi penyesuaian stok.
         </p>
 
         {/* 3 KOLOM TANDA TANGAN RESMI */}

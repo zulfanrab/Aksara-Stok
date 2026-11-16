@@ -200,8 +200,8 @@ export function KeluarClient({ items: initialItems, people: initialPeople, proje
         </p>
         <p className="text-xs text-[var(--slate-400)] leading-relaxed">
           {successData.isOffline
-            ? "Data tersimpan di antrean perangkat dengan UUID idempoten. Akan disinkronkan otomatis ke server saat Anda terhubung kembali ke internet."
-            : "Tercatat secara idempoten pada ledger append-only stock_movements."}
+            ? "Data tersimpan di antrean offline HP. Akan disinkronkan otomatis saat terhubung kembali ke internet."
+            : "Pengeluaran barang telah berhasil dicatat ke dalam riwayat stok."}
         </p>
 
 
@@ -444,7 +444,7 @@ export function KeluarClient({ items: initialItems, people: initialPeople, proje
               : "bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] active:scale-98"
           )}
         >
-          {isPending ? "Menyimpan ke Ledger..." : "Simpan Pengeluaran (Catat Keluar)"}
+          {isPending ? "Menyimpan..." : "Simpan Pengeluaran"}
         </button>
       </div>
     </div>

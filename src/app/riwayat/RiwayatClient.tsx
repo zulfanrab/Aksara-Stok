@@ -73,7 +73,7 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--rose-50)] text-[var(--rose-700)] text-xs font-bold num-mono">
             <RotateCcw className="w-3.5 h-3.5 text-[var(--rose-700)]" />
-            Pembalik ({qty > 0 ? `+${qty}` : qty}) {unitName}
+            Koreksi ({qty > 0 ? `+${qty}` : qty}) {unitName}
           </span>
         );
       case "ADJUST":
@@ -94,10 +94,10 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
-              Riwayat Pergerakan Stok (Ledger)
+              Riwayat Pergerakan Stok
             </h1>
             <p className="text-xs text-[var(--slate-400)] mt-0.5">
-              Jurnal mutasi append-only &bull; Setiap transaksi memiliki UUID idempoten
+              Catatan mutasi barang masuk, keluar, penyesuaian, dan koreksi
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -121,10 +121,10 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
           {["ALL", "IN", "OUT", "REVERSAL"].map((filter) => {
             const isSelected = selectedFilter === filter;
             const labels: Record<string, string> = {
-              ALL: "Semua Mutasi",
-              IN: "Penerimaan (IN)",
-              OUT: "Pengeluaran (OUT)",
-              REVERSAL: "Pembalik (REVERSAL)",
+              ALL: "Semua",
+              IN: "Barang Masuk",
+              OUT: "Barang Keluar",
+              REVERSAL: "Koreksi",
             };
             return (
               <button
@@ -230,10 +230,10 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
               <div>
                 <span className="inline-flex items-center gap-1 text-xs font-bold text-[var(--rose-700)] bg-[var(--rose-50)] px-2.5 py-1 rounded-full border border-[var(--rose-500)]/20">
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Koreksi Transaksi (REVERSAL)
+                  Koreksi Transaksi
                 </span>
                 <h3 className="text-base font-bold text-[var(--slate-900)] mt-2">
-                  Batalkan Transaksi {reversingItem.type} #{reversingItem.id.substring(0, 8)}?
+                  Koreksi Transaksi {reversingItem.type === "IN" ? "Barang Masuk" : reversingItem.type === "OUT" ? "Barang Keluar" : "Penyesuaian"}?
                 </h3>
               </div>
               <button
@@ -250,7 +250,7 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
                 Jumlah Asli: <strong className="num-mono font-bold">{reversingItem.qty} {reversingItem.item?.unit?.name}</strong>
               </div>
               <div className="text-[11px] text-[var(--slate-400)] leading-relaxed pt-1 border-t border-slate-200">
-                Sesuai aturan ledger append-only, data transaksi asli tidak akan dihapus. Sistem akan membuat transaksi pembalik bertipe <strong>REVERSAL</strong> untuk menetralkan saldo stok.
+                Data transaksi asli tetap tersimpan sebagai catatan riwayat. Sistem akan membuat transaksi koreksi untuk mengembalikan saldo stok ke jumlah yang benar.
               </div>
             </div>
 
@@ -263,7 +263,7 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
 
             <div className="space-y-1">
               <label className="text-xs font-bold text-[var(--slate-700)]">
-                Alasan Koreksi / Pembatalan (Wajib)
+                Alasan Koreksi (Wajib)
               </label>
               <textarea
                 rows={2}
@@ -293,7 +293,7 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
                     : "bg-gradient-to-r from-[var(--rose-500)] to-[var(--rose-700)] hover:from-[var(--rose-700)] hover:to-[var(--rose-700)]"
                 )}
               >
-                {isPending ? "Menyimpan Pembalik..." : "Konfirmasi Koreksi"}
+                {isPending ? "Menyimpan Koreksi..." : "Simpan Koreksi"}
               </button>
             </div>
           </div>

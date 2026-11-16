@@ -168,7 +168,7 @@ export function LaporanClient({ data }: LaporanClientProps) {
               Rekapitulasi & Analisis Pemakaian
             </h1>
             <p className="text-xs text-[var(--slate-400)] mt-1">
-              Data stok append-only real-time, analisis pemakaian 13 pengguna barang, dan ekspor dokumen dinas resmi.
+              Data stok terkini, analisis pemakaian barang, dan ekspor laporan resmi.
             </p>
           </div>
 

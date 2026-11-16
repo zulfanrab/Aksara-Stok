@@ -5,7 +5,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 
 export const metadata = {
   title: "Riwayat Pergerakan Stok | PT Aksara Riksa Perdana",
-  description: "Log mutasi ledger stok append-only dan koreksi pembalik",
+  description: "Catatan riwayat pergerakan barang dan koreksi transaksi",
 };
 
 export default async function RiwayatPage() {
