@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, ClipboardList, CheckCircle2, Clock, AlertTriangle, ArrowRight, Printer, FileText, User, X } from "lucide-react";
 import type { StockTakeWithDetails, Profile, Category } from "@/lib/services/inventory";
 import { createStockTakeAction } from "@/lib/actions/opname";
+import { OpnameGuideModal } from "@/components/opname/OpnameGuideModal";
 import { cn } from "@/lib/utils";
 
 interface OpnameClientProps {
@@ -100,13 +101,16 @@ export function OpnameClient({ stockTakes, profiles, categories }: OpnameClientP
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-xs sm:text-sm font-semibold shadow-xs hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] touch-target transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Buka Sesi Opname Baru</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <OpnameGuideModal />
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-xs sm:text-sm font-semibold shadow-xs hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] touch-target transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Buka Sesi Opname Baru</span>
+          </button>
+        </div>
       </div>
 
       {/* List Sesi Opname */}

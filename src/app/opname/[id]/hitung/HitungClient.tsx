@@ -8,6 +8,7 @@ import type { Person } from "@/types/inventory";
 import { submitCountLineAction } from "@/lib/actions/opname";
 import { enqueueOutboxItem, setCachedMasterData, getCachedMasterData } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync";
+import { OpnameGuideModal } from "@/components/opname/OpnameGuideModal";
 import { cn } from "@/lib/utils";
 
 interface HitungClientProps {
@@ -140,22 +141,25 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
   return (
     <div className="max-w-md mx-auto space-y-4 pb-20">
       {/* Top Bar Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Link
           href={`/opname/${stockTake.id}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--slate-700)] hover:text-[var(--emerald-700)] touch-target"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--slate-700)] hover:text-[var(--emerald-700)] touch-target shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Review Sesi</span>
         </Link>
 
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[var(--slate-200)] text-xs font-semibold text-[var(--slate-700)] touch-target shadow-xs"
-        >
-          <ListFilter className="w-3.5 h-3.5" />
-          <span>Daftar Item ({countedCount}/{localLines.length})</span>
-        </button>
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <OpnameGuideModal />
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[var(--slate-200)] text-xs font-semibold text-[var(--slate-700)] touch-target shadow-xs shrink-0"
+          >
+            <ListFilter className="w-3.5 h-3.5" />
+            <span>Daftar ({countedCount}/{localLines.length})</span>
+          </button>
+        </div>
       </div>
 
       {/* Progress & Penghitung Selector */}

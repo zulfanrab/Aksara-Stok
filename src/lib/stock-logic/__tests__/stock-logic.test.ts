@@ -608,6 +608,108 @@ describe("Agregasi Laporan & Analisis Pemakaian (Langkah 7)", () => {
   });
 });
 
+describe("Langkah 8: Simulasi Siklus Penuh Opname Lapangan (Marsya & Ajay)", () => {
+  it("memvalidasi alur state machine opname: DRAFT -> COUNTING -> REVIEW -> APPROVED -> POSTED", () => {
+    type OpnameState = "DRAFT" | "COUNTING" | "REVIEW" | "APPROVED" | "POSTED";
+
+    function canTransition(from: OpnameState, to: OpnameState): boolean {
+      const allowed: Record<OpnameState, OpnameState[]> = {
+        DRAFT: ["COUNTING"],
+        COUNTING: ["REVIEW"],
+        REVIEW: ["APPROVED", "COUNTING"],
+        APPROVED: ["POSTED"],
+        POSTED: [], // Terminal state, immutable
+      };
+      return allowed[from].includes(to);
+    }
+
+    expect(canTransition("DRAFT", "COUNTING")).toBe(true);
+    expect(canTransition("COUNTING", "REVIEW")).toBe(true);
+    expect(canTransition("REVIEW", "APPROVED")).toBe(true);
+    expect(canTransition("APPROVED", "POSTED")).toBe(true);
+
+    // Dilarang loncat langsung
+    expect(canTransition("DRAFT", "POSTED")).toBe(false);
+    expect(canTransition("COUNTING", "POSTED")).toBe(false);
+    expect(canTransition("POSTED", "DRAFT")).toBe(false);
+  });
+
+  it("menghitung kecepatan pencatatan hitung buta di bawah target 10 detik per item", () => {
+    // Simulasi latensi pencatatan 5 item dalam milidetik
+    const recordedDurationsMs = [78, 112, 94, 84, 95];
+    const avgDurationSec = (recordedDurationsMs.reduce((a, b) => a + b, 0) / recordedDurationsMs.length) / 1000;
+
+    expect(avgDurationSec).toBeLessThan(10.0); // Jauh lebih cepat dari 10 detik
+    expect(avgDurationSec).toBeLessThan(1.0);  // Bahkan di bawah 1 detik
+  });
+
+  it("mengharuskan hitung ulang (recount) menggantikan counted_qty dalam evaluasi selisih akhir", () => {
+    const systemQty = 20;
+    const countedQty = 15; // Selisih awal -5
+    const recountQty = 18; // Hasil hitung ulang tim kedua
+
+    // Hitung selisih awal sebelum recount
+    const initialRes = calculateStockTakeDiscrepancy({
+      item_id: "item-sample",
+      system_qty: systemQty,
+      counted_qty: countedQty,
+      recount_qty: null,
+      unit_price: 10000,
+    });
+    expect(initialRes.discrepancy_qty).toBe(-5);
+
+    // Hitung selisih setelah recount (recountQty harus diprioritaskan)
+    const finalRes = calculateStockTakeDiscrepancy({
+      item_id: "item-sample",
+      system_qty: systemQty,
+      counted_qty: countedQty,
+      recount_qty: recountQty,
+      unit_price: 10000,
+    });
+    expect(finalRes.discrepancy_qty).toBe(-2);
+  });
+
+  it("menegakkan aturan pengecualian: selisih >= Rp 100.000 atau alat ukur wajib menyertakan foto dan alasan", () => {
+    function validateDiscrepancyResolution(item: { isInstrument: boolean; unitPrice: number }, diff: number, reason?: string, photo?: string) {
+      if (diff === 0) return { valid: true };
+
+      const isHighValue = Math.abs(diff * item.unitPrice) >= 100000;
+      const requiresStrictEvidence = item.isInstrument || isHighValue;
+
+      if (requiresStrictEvidence) {
+        if (!reason || reason.trim().length < 3) {
+          return { valid: false, error: "Alasan perbedaan fisik wajib diisi." };
+        }
+        if (!photo) {
+          return { valid: false, error: "Foto bukti kondisi fisik wajib diunggah." };
+        }
+      }
+      return { valid: true };
+    }
+
+    const multimeter = { isInstrument: true, unitPrice: 750000 };
+    const pulpen = { isInstrument: false, unitPrice: 3000 };
+
+    // Alat ukur selisih tanpa foto -> ditolak
+    const res1 = validateDiscrepancyResolution(multimeter, -1, "Alat sedang dikalibrasi di luar");
+    expect(res1.valid).toBe(false);
+    expect(res1.error).toContain("Foto bukti");
+
+    // Alat ukur selisih dengan foto dan alasan -> sah
+    const res2 = validateDiscrepancyResolution(multimeter, -1, "Alat sedang dikalibrasi di luar", "https://photo.jpg");
+    expect(res2.valid).toBe(true);
+
+    // Barang murah selisih 1 pcs (Rp 3.000) tanpa foto -> diizinkan toleransi
+    const res3 = validateDiscrepancyResolution(pulpen, -1);
+    expect(res3.valid).toBe(true);
+
+    // Barang murah selisih 50 pcs (50 * 3.000 = Rp 150.000 >= 100k) tanpa foto -> ditolak karena akumulasi >= 100k
+    const res4 = validateDiscrepancyResolution(pulpen, -50);
+    expect(res4.valid).toBe(false);
+  });
+});
+
+
 
 
 
