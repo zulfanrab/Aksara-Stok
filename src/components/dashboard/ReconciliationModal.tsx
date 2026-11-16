@@ -47,10 +47,10 @@ export function ReconciliationModal({ isOpen, onClose }: ReconciliationModalProp
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-[var(--slate-900)]">
+              <h3 className="text-sm sm:text-base font-bold text-slate-900">
                 Checklist Rekonsiliasi Paralel Excel vs PWA
               </h3>
-              <p className="text-[11px] text-[var(--slate-400)]">
+              <p className="text-[11px] text-slate-500 font-medium">
                 Prosedur Harian Transisi 2 Minggu &bull; Marsya & Ajay
               </p>
             </div>

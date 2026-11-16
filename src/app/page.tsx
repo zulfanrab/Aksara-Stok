@@ -145,75 +145,75 @@ export default async function Home() {
               className="flex flex-col justify-between p-4 rounded-xl bg-gradient-to-br from-[var(--emerald-600)] to-[var(--emerald-700)] text-white shadow-sm hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] active:scale-98 touch-target transition-all"
             >
               <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center mb-3">
-                <ClipboardList className="w-5 h-5" />
+                <ClipboardList className="w-5 h-5 text-white" />
               </div>
               <div>
-                <span className="text-[11px] text-emerald-100 font-medium block">Sesi Fisik</span>
-                <span className="text-sm sm:text-base font-bold">Stock Opname</span>
+                <span className="text-[11px] text-white/95 font-semibold block">Sesi Fisik</span>
+                <span className="text-sm sm:text-base font-bold text-white">Stock Opname</span>
               </div>
             </Link>
 
             <Link
               href="/keluar"
-              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-[var(--slate-200)] text-[var(--slate-900)] shadow-xs hover:border-[var(--emerald-500)]/40 hover:bg-slate-50 active:scale-98 touch-target transition-all"
+              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xs hover:border-emerald-500/50 hover:bg-slate-50 active:scale-98 touch-target transition-all"
             >
-              <div className="w-9 h-9 rounded-lg bg-[var(--emerald-50)] text-[var(--emerald-700)] flex items-center justify-center mb-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center mb-3">
                 <ArrowUpRight className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] text-[var(--slate-400)] font-medium block">&lt; 10 Detik</span>
-                <span className="text-sm sm:text-base font-bold">Catat Keluar</span>
+                <span className="text-[11px] text-slate-500 font-semibold block">&lt; 10 Detik</span>
+                <span className="text-sm sm:text-base font-bold text-slate-900">Catat Keluar</span>
               </div>
             </Link>
 
             <Link
               href="/masuk"
-              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-[var(--slate-200)] text-[var(--slate-900)] shadow-xs hover:border-[var(--emerald-500)]/40 hover:bg-slate-50 active:scale-98 touch-target transition-all"
+              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xs hover:border-blue-500/50 hover:bg-slate-50 active:scale-98 touch-target transition-all"
             >
               <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center mb-3">
                 <ArrowDownLeft className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] text-[var(--slate-400)] font-medium block">Konversi Beli</span>
-                <span className="text-sm sm:text-base font-bold">Catat Masuk</span>
+                <span className="text-[11px] text-slate-500 font-semibold block">Konversi Beli</span>
+                <span className="text-sm sm:text-base font-bold text-slate-900">Catat Masuk</span>
               </div>
             </Link>
 
             <Link
               href="/riwayat"
-              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-[var(--slate-200)] text-[var(--slate-900)] shadow-xs hover:bg-slate-50 active:scale-98 touch-target transition-all"
+              className="flex flex-col justify-between p-4 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-xs hover:bg-slate-50 active:scale-98 touch-target transition-all"
             >
               <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center mb-3">
                 <History className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[11px] text-[var(--slate-400)] font-medium block">Audit Ledger</span>
-                <span className="text-sm sm:text-base font-bold">Riwayat Mutasi</span>
+                <span className="text-[11px] text-slate-500 font-semibold block">Audit Ledger</span>
+                <span className="text-sm sm:text-base font-bold text-slate-900">Riwayat Mutasi</span>
               </div>
             </Link>
           </div>
 
-          {/* Quick Metrics Grid */}
+          {/* Quick Metrics Grid Kontras Tinggi */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-            <Link href="/barang" className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)] hover:border-slate-300">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Master Barang</span>
-              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">{items.length} Item</span>
-              <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Buka Katalog &rarr;</span>
+            <Link href="/barang" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
+              <span className="text-xs text-slate-600 font-bold block">Master Barang</span>
+              <span className="text-xl font-bold text-slate-900 num-mono">{items.length} Item</span>
+              <span className="text-[11px] text-emerald-700 font-bold block mt-0.5">Buka Katalog &rarr;</span>
             </Link>
-            <Link href="/karyawan" className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)] hover:border-slate-300">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Pengguna Barang</span>
-              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">{people.length} Orang</span>
-              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">Tabel people &rarr;</span>
+            <Link href="/karyawan" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
+              <span className="text-xs text-slate-600 font-bold block">Pengguna Barang</span>
+              <span className="text-xl font-bold text-slate-900 num-mono">{people.length} Orang</span>
+              <span className="text-[11px] text-slate-800 font-bold block mt-0.5">Tabel people &rarr;</span>
             </Link>
-            <Link href="/opname" className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)] hover:border-slate-300">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Sesi Opname</span>
-              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">{stockTakes.length} Sesi</span>
-              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">Lihat Sesi &rarr;</span>
+            <Link href="/opname" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
+              <span className="text-xs text-slate-600 font-bold block">Sesi Opname</span>
+              <span className="text-xl font-bold text-slate-900 num-mono">{stockTakes.length} Sesi</span>
+              <span className="text-[11px] text-slate-800 font-bold block mt-0.5">Lihat Sesi &rarr;</span>
             </Link>
-            <Link href="/laporan" className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)] hover:border-slate-300">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Laporan & Audit</span>
-              <span className="text-xl font-bold text-[var(--emerald-700)] num-mono">3 Format</span>
-              <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Excel &bull; Word &bull; PDF &rarr;</span>
+            <Link href="/laporan" className="bg-white rounded-xl p-3 border border-slate-200 hover:border-slate-300 shadow-2xs">
+              <span className="text-xs text-slate-600 font-bold block">Laporan & Audit</span>
+              <span className="text-xl font-bold text-emerald-700 num-mono">3 Format</span>
+              <span className="text-[11px] text-emerald-700 font-bold block mt-0.5">Excel &bull; Word &bull; PDF &rarr;</span>
             </Link>
           </div>
         </div>
@@ -231,7 +231,7 @@ export default async function Home() {
           </div>
 
           {recentMovements.length === 0 ? (
-            <div className="p-6 rounded-xl bg-[var(--bg-canvas)] text-center text-xs text-[var(--slate-400)] border border-dashed border-[var(--slate-200)]">
+            <div className="p-6 rounded-xl bg-[var(--bg-canvas)] text-center text-xs text-slate-500 font-medium border border-dashed border-slate-200">
               Belum ada mutasi stok hari ini. Klik <strong>Catat Keluar</strong> atau <strong>Catat Masuk</strong> untuk mencatat mutasi pertama Anda.
             </div>
           ) : (
@@ -253,14 +253,14 @@ export default async function Home() {
                       {mov.type}
                     </span>
                     <div>
-                      <span className="font-bold text-[var(--slate-900)]">{mov.item?.name}</span>
-                      <span className="text-[var(--slate-400)] ml-1">
+                      <span className="font-bold text-slate-900">{mov.item?.name}</span>
+                      <span className="text-slate-500 font-medium ml-1">
                         {mov.person ? `• oleh ${mov.person.name}` : ""}
                         {mov.ref_type === "STOCK_TAKE" ? " • Hasil Opname" : ""}
                       </span>
                     </div>
                   </div>
-                  <span className="num-mono font-bold text-[var(--slate-900)]">
+                  <span className="num-mono font-bold text-slate-900">
                     {mov.type === "OUT" ? `-${mov.qty}` : mov.qty > 0 ? `+${mov.qty}` : `${mov.qty}`} {mov.item?.unit?.name}
                   </span>
                 </div>
@@ -270,26 +270,26 @@ export default async function Home() {
         </div>
 
         {/* 8 Aturan Wajib Checklist */}
-        <div className="bg-white rounded-2xl p-5 border border-[var(--slate-200)] shadow-xs">
-          <h3 className="text-base font-bold text-[var(--slate-900)] mb-1 flex items-center gap-2">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+          <h3 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
             <Lock className="w-4 h-4 text-[var(--emerald-600)]" />
             Kepatuhan 8 Aturan Wajib Blueprint
           </h3>
-          <p className="text-xs text-[var(--slate-400)] mb-4">
+          <p className="text-xs text-slate-500 font-medium mb-4">
             Terverifikasi pada arsitektur kode, migrasi database, dan pengujian unit.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {mandatoryRules.map((rule, idx) => (
               <div
                 key={idx}
-                className="p-3.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--slate-200)] flex items-start gap-3"
+                className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-start gap-3 shadow-2xs"
               >
-                <div className="w-5 h-5 rounded-full bg-[var(--emerald-50)] text-[var(--emerald-600)] flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-[var(--slate-900)]">{rule.title}</h4>
-                  <p className="text-[11px] text-[var(--slate-700)] mt-0.5 leading-relaxed">{rule.desc}</p>
+                  <h4 className="text-xs font-bold text-slate-900">{rule.title}</h4>
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{rule.desc}</p>
                 </div>
               </div>
             ))}
@@ -297,16 +297,16 @@ export default async function Home() {
         </div>
 
         {/* Roadmap Langkah Selanjutnya */}
-        <div className="bg-gradient-to-br from-white to-[var(--emerald-50)]/40 rounded-2xl p-5 border border-[var(--slate-200)]">
+        <div className="bg-white rounded-2xl p-5 border-2 border-emerald-500/30 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <span className="text-xs font-semibold text-[var(--emerald-700)] uppercase tracking-wider block">
+              <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
                 Siklus 9 Langkah Blueprint Selesai & Terverifikasi
               </span>
-              <h4 className="text-base font-bold text-[var(--slate-900)] mt-0.5">
+              <h4 className="text-base font-bold text-slate-900 mt-0.5">
                 Langkah 9: Masa Transisi Paralel Aktif Menuju Arsip Excel Statis
               </h4>
-              <p className="text-xs text-[var(--slate-700)] mt-1">
+              <p className="text-xs text-slate-700 mt-1 leading-relaxed">
                 Aplikasi PWA Aksara Stok kini resmi berjalan di lingkungan produksi Vercel & Supabase. Setelah 14 hari pencatatan ganda tanpa selisih, Excel lama resmi dikunci sebagai arsip baca-saja (*read-only*).
               </p>
             </div>

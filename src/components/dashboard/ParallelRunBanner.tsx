@@ -5,73 +5,74 @@ import Link from "next/link";
 import {
   Calendar,
   FileSpreadsheet,
-  CheckCircle2,
-  ArrowRight,
-  ShieldCheck,
   Download,
-  ClipboardList,
+  ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
 import { ReconciliationModal } from "./ReconciliationModal";
 
 export function ParallelRunBanner() {
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Hitung hari transisi (misal: 14 hari masa uji coba paralel)
+  // Hitung hari transisi (14 hari masa uji coba paralel)
   const totalDays = 14;
   const currentDay = 1;
   const progressPct = Math.round((currentDay / totalDays) * 100);
 
   return (
     <>
-      <div className="bg-gradient-to-br from-emerald-900 via-[var(--emerald-800)] to-teal-900 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-emerald-700/50 relative overflow-hidden">
-        {/* Background glow decoration */}
-        <div className="absolute -right-10 -bottom-10 w-44 h-44 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
+      <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-xs border-2 border-emerald-500/40 relative overflow-hidden">
+        {/* Subtle accent bar on the left */}
+        <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b from-[var(--emerald-500)] to-[var(--emerald-700)]" />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-semibold backdrop-blur-xs">
-              <Calendar className="w-3.5 h-3.5 text-emerald-300" />
-              <span>Langkah 9 Aktif: Peluncuran Paralel (2 Minggu)</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 pl-2">
+          <div className="space-y-2.5 max-w-2xl">
+            {/* Pill Status */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+              <Calendar className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span>Langkah 9 Aktif: Peluncuran Paralel (Masa Transisi 2 Minggu)</span>
             </div>
 
-            <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+            {/* Judul Kontras Tinggi */}
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
               Masa Transisi & Rekonsiliasi: Excel Lama &harr; PWA Aksara Stok
             </h3>
 
-            <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed max-w-2xl">
+            {/* Deskripsi Teks Hitam-Slate Jelas */}
+            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
               Aplikasi dan Excel lama berjalan berdampingan selama 2 minggu. Seluruh mutasi dicatat pada PWA &lt; 10 detik, lalu dicocokkan dengan Excel sebelum file lama resmi dikunci sebagai arsip baca-saja (*read-only*).
             </p>
 
-            {/* Status Hari Transisi */}
-            <div className="pt-1 flex items-center gap-3">
-              <div className="w-36 bg-white/20 h-2 rounded-full overflow-hidden">
+            {/* Status Hari Transisi Kontras Tinggi */}
+            <div className="pt-1.5 flex flex-wrap items-center gap-3">
+              <div className="w-40 bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div
-                  className="bg-emerald-400 h-full rounded-full transition-all duration-300"
+                  className="bg-emerald-600 h-full rounded-full transition-all duration-300"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
-              <span className="text-[11px] font-bold text-emerald-200 num-mono">
+              <span className="text-xs font-bold text-slate-900 num-mono">
                 Hari ke-{currentDay} dari {totalDays} Hari Transisi ({progressPct}%)
               </span>
             </div>
           </div>
 
-          {/* Tombol Aksi Cepat */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
+          {/* Tombol Aksi Cepat dengan Kontras Kuat */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0 pl-2 md:pl-0">
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-950 text-xs font-bold shadow-sm hover:bg-emerald-50 active:scale-98 touch-target transition-all"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] text-white text-xs font-bold shadow-xs active:scale-98 touch-target transition-all"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+              <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
               <span>Checklist Rekonsiliasi</span>
             </button>
 
             <Link
               href="/laporan"
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold touch-target transition-all"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold touch-target transition-all shadow-xs"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-4 h-4 text-slate-700" />
               <span>Ekspor Excel</span>
             </Link>
           </div>
