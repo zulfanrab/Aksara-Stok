@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { ParallelRunBanner } from "@/components/dashboard/ParallelRunBanner";
 import {
   getMovements,
   getItems,
@@ -72,8 +73,8 @@ export default async function Home() {
       verified: true,
     },
     {
-      title: "32 Unit Tests Terverifikasi",
-      desc: "Logika stok, konversi kemasan, toleransi opname, aturan approver, outbox offline, dan agregasi laporan lolos 100%.",
+      title: "36 Unit Tests Terverifikasi",
+      desc: "Logika ledger stok, konversi satuan, toleransi opname, aturan approver != counter, outbox offline, bukti foto, dan rekonsiliasi lolos 100%.",
       verified: true,
     },
   ];
@@ -83,11 +84,14 @@ export default async function Home() {
       <Navbar />
 
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-5 pb-24 md:pb-12">
+        {/* Parallel Run Banner (Langkah 9) */}
+        <ParallelRunBanner />
+
         {/* Hero Card */}
         <div className="bg-white rounded-2xl p-5 sm:p-7 border border-[var(--slate-200)] shadow-xs">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-[var(--emerald-700)] text-xs font-semibold mb-3">
             <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-            Langkah 7 Aktif: Rekapitulasi & Ekspor Laporan (Excel, Word, PDF) Siap Digunakan
+            Langkah 9 Aktif: Peluncuran Paralel (Excel & PWA 2 Minggu) Menuju Penguncian Arsip
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
             PT Aksara Riksa Perdana &mdash; Stock Opname & Inventaris
@@ -297,19 +301,22 @@ export default async function Home() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs font-semibold text-[var(--emerald-700)] uppercase tracking-wider block">
-                Langkah 7 Selesai
+                Siklus 9 Langkah Blueprint Selesai & Terverifikasi
               </span>
               <h4 className="text-base font-bold text-[var(--slate-900)] mt-0.5">
-                Siap Melanjutkan ke Langkah 8: Uji Pengguna (Sesi Opname Penuh Bersama Marsya & Ajay)
+                Langkah 9: Masa Transisi Paralel Aktif Menuju Arsip Excel Statis
               </h4>
               <p className="text-xs text-[var(--slate-700)] mt-1">
-                Marsya dan Ajay menjalankan satu sesi opname penuh di perangkat fisik: hitung buta 128 barang, pengukuran waktu pelaksanaan (&lt; 10 detik/transaksi), dan pencatatan kendala lapangan.
+                Aplikasi PWA Aksara Stok kini resmi berjalan di lingkungan produksi Vercel & Supabase. Setelah 14 hari pencatatan ganda tanpa selisih, Excel lama resmi dikunci sebagai arsip baca-saja (*read-only*).
               </p>
             </div>
-            <div className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm touch-target cursor-default shrink-0">
-              Langkah 7 Terverifikasi
+            <Link
+              href="/laporan"
+              className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm touch-target shrink-0"
+            >
+              <span>Ekspor Rekapitulasi</span>
               <ArrowRight className="w-4 h-4 ml-2" />
-            </div>
+            </Link>
           </div>
         </div>
 

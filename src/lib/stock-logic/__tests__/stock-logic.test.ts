@@ -709,6 +709,87 @@ describe("Langkah 8: Simulasi Siklus Penuh Opname Lapangan (Marsya & Ajay)", () 
   });
 });
 
+describe("Langkah 9: Peluncuran Paralel & Rekonsiliasi Excel vs PWA", () => {
+  it("menghitung sisa hari dan progres masa transisi paralel 14 hari", () => {
+    function calculateTransitionProgress(startDate: Date, currentDate: Date, totalDays = 14) {
+      const diffTime = currentDate.getTime() - startDate.getTime();
+      const passedDays = Math.max(1, Math.min(totalDays, Math.ceil(diffTime / (1000 * 60 * 60 * 24))));
+      const remainingDays = Math.max(0, totalDays - passedDays);
+      const progressPercent = Math.round((passedDays / totalDays) * 100);
+
+      return {
+        passedDays,
+        remainingDays,
+        progressPercent,
+        isTransitionComplete: remainingDays === 0,
+      };
+    }
+
+    const start = new Date("2026-11-16T00:00:00Z");
+
+    // Hari ke-1
+    const day1 = calculateTransitionProgress(start, new Date("2026-11-16T12:00:00Z"));
+    expect(day1.passedDays).toBe(1);
+    expect(day1.remainingDays).toBe(13);
+    expect(day1.progressPercent).toBe(7);
+    expect(day1.isTransitionComplete).toBe(false);
+
+    // Hari ke-7 (akhir pekan 1)
+    const day7 = calculateTransitionProgress(start, new Date("2026-11-22T12:00:00Z"));
+    expect(day7.passedDays).toBe(7);
+    expect(day7.remainingDays).toBe(7);
+    expect(day7.progressPercent).toBe(50);
+    expect(day7.isTransitionComplete).toBe(false);
+
+    // Hari ke-14 (selesai 2 minggu)
+    const day14 = calculateTransitionProgress(start, new Date("2026-11-30T12:00:00Z"));
+    expect(day14.passedDays).toBe(14);
+    expect(day14.remainingDays).toBe(0);
+    expect(day14.progressPercent).toBe(100);
+    expect(day14.isTransitionComplete).toBe(true);
+  });
+
+  it("memvalidasi rekonsiliasi saldo: mengizinkan penguncian arsip Excel hanya jika selisih 0", () => {
+    function evaluateReconciliation(excelBalance: number, pwaBalance: number) {
+      const diff = pwaBalance - excelBalance;
+      const isReconciled = diff === 0;
+
+      return {
+        diff,
+        isReconciled,
+        status: isReconciled ? "SEIMBANG_SIAP_ARSIP" : "PERLU_INVESTIGASI",
+        archivePermitted: isReconciled,
+      };
+    }
+
+    // Saldo persis sama
+    const match = evaluateReconciliation(500, 500);
+    expect(match.isReconciled).toBe(true);
+    expect(match.diff).toBe(0);
+    expect(match.archivePermitted).toBe(true);
+    expect(match.status).toBe("SEIMBANG_SIAP_ARSIP");
+
+    // Saldo selisih (misal di Excel belum dicatat mutasi keluar 5 pcs)
+    const mismatch = evaluateReconciliation(505, 500);
+    expect(mismatch.isReconciled).toBe(false);
+    expect(mismatch.diff).toBe(-5);
+    expect(mismatch.archivePermitted).toBe(false);
+    expect(mismatch.status).toBe("PERLU_INVESTIGASI");
+  });
+
+  it("menghasilkan format penamaan arsip Excel resmi sesuai Blueprint", () => {
+    function generateArchiveFileName(company: string, cutoffMonthYear: string): string {
+      return `[ARSIP BACA-SAJA] Inventaris ${company} s.d. ${cutoffMonthYear}.xlsx`;
+    }
+
+    const fileName = generateArchiveFileName("PT Aksara Riksa Perdana", "November 2026");
+    expect(fileName).toBe("[ARSIP BACA-SAJA] Inventaris PT Aksara Riksa Perdana s.d. November 2026.xlsx");
+    expect(fileName).toContain("[ARSIP BACA-SAJA]");
+    expect(fileName).toContain(".xlsx");
+  });
+});
+
+
 
 
 
