@@ -1,5 +1,7 @@
-import Image from "next/image";
-import { CheckCircle2, ShieldCheck, Database, Smartphone, ArrowRight, Layers, Lock, Cpu } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ShieldCheck, Database, ArrowRight, Layers, Lock, Package, Users } from "lucide-react";
+import { Navbar } from "@/components/layout/Navbar";
+import { BottomNav } from "@/components/layout/BottomNav";
 
 export default function Home() {
   const mandatoryRules = [
@@ -39,81 +41,78 @@ export default function Home() {
       verified: true,
     },
     {
-      title: "PWA & Vercel Ready",
-      desc: "Web App Manifest, safe area insets, build Turbopack cepat, dan vercel.json sin1 terkonfigurasi.",
+      title: "Master Data 128 Barang Bersih",
+      desc: "Duplikasi digabung, kode rusak diperbaiki, biaya rutin dipisah, dan data 13 karyawan aktif di Supabase.",
       verified: true,
     },
   ];
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--slate-700)] flex flex-col">
-      {/* Top Header dengan Garis Emas Sesuai Bagian 9 */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[var(--slate-200)] shadow-xs">
-        <div className="h-1 bg-gradient-to-r from-[var(--gold-light)] via-[var(--gold-main)] to-[var(--gold-shadow)]" />
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--emerald-600)] to-[var(--emerald-700)] flex items-center justify-center p-2 shadow-sm shadow-[var(--emerald-600)]/20">
-              <Image src="/icon.svg" alt="Aksara Stok" width={28} height={28} className="w-full h-full" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-[var(--slate-900)] tracking-tight leading-tight">
-                PT Aksara Riksa Perdana
-              </h1>
-              <p className="text-xs text-[var(--slate-400)] font-medium">
-                PWA Stock Opname & Inventaris
-              </p>
-            </div>
-          </div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--emerald-50)] border border-[var(--emerald-500)]/20 text-[var(--emerald-700)] text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[var(--emerald-500)] animate-pulse" />
-            Langkah 1 Aktif
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Main Content Area - Mobile-First 360px layout */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 space-y-6 pb-24 md:pb-12">
         {/* Hero Card */}
         <div className="bg-white rounded-2xl p-5 sm:p-7 border border-[var(--slate-200)] shadow-xs">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-[var(--emerald-700)] text-xs font-semibold mb-3">
             <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-            Kerangka & Keamanan Selesai (BLUEPRINT.md Bagian 15)
+            Langkah 2 Selesai: Master Data & Pengguna Barang Siap
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] leading-snug">
-            Sistem Stock Opname Lapangan Siap Dideploy
+            Sistem Inventaris PT Aksara Riksa Perdana
           </h2>
           <p className="text-sm text-[var(--slate-700)] mt-2 leading-relaxed">
-            Fondasi teknis telah terbangun: database PostgreSQL Supabase dengan ledger append-only,
-            pencegahan pelanggaran persetujuan opname di level DB, RLS berbasis peran, design tokens resmi,
-            dan 18 pengujian logika stok otomatis.
+            Database Supabase telah terisi data riil yang dinormalisasi dari Excel: 128 master barang terstandarisasi,
+            13 karyawan pengguna barang fisik, 7 kategori, 19 satuan, serta 8 aturan konversi satuan.
           </p>
 
+          {/* Tombol Aksi Cepat Master Data */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-5">
+            <Link
+              href="/barang"
+              className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white font-semibold text-sm shadow-sm hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] touch-target transition-all"
+            >
+              <Package className="w-4 h-4" />
+              <span>Buka Master Barang (128 Item)</span>
+              <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
+
+            <Link
+              href="/karyawan"
+              className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-white border border-[var(--slate-200)] text-[var(--slate-700)] font-semibold text-sm hover:bg-slate-50 touch-target transition-all"
+            >
+              <Users className="w-4 h-4 text-[var(--emerald-600)]" />
+              <span>Daftar 13 Karyawan (People)</span>
+            </Link>
+          </div>
+
           {/* Quick Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
+              <span className="text-xs text-[var(--slate-400)] font-medium block">Master Barang</span>
+              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">128 Item</span>
+              <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Kode Bersih</span>
+            </div>
+            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
+              <span className="text-xs text-[var(--slate-400)] font-medium block">Pengguna Barang</span>
+              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">13 Orang</span>
+              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">Tabel people</span>
+            </div>
+            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
+              <span className="text-xs text-[var(--slate-400)] font-medium block">Kategori & Satuan</span>
+              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">7 / 19</span>
+              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">8 Konversi</span>
+            </div>
             <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
               <span className="text-xs text-[var(--slate-400)] font-medium block">Pengujian Vitest</span>
               <span className="text-xl font-bold text-[var(--emerald-700)] num-mono">18 / 18</span>
               <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Lolos 100%</span>
             </div>
-            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Skema DB</span>
-              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">17 Tabel</span>
-              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">2 Triggers + RLS</span>
-            </div>
-            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Touch Target</span>
-              <span className="text-xl font-bold text-[var(--slate-900)] num-mono">&ge; 48 px</span>
-              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">Mobile-first</span>
-            </div>
-            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Hosting Target</span>
-              <span className="text-xl font-bold text-[var(--slate-900)]">Vercel</span>
-              <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">Region sin1</span>
-            </div>
           </div>
         </div>
 
-        {/* Contoh Penerapan Status Sesuai Bagian 9 */}
+        {/* Penerapan Design Tokens Status Sesuai Bagian 9 */}
         <div className="bg-white rounded-2xl p-5 border border-[var(--slate-200)] shadow-xs">
           <h3 className="text-sm font-bold text-[var(--slate-900)] mb-3 flex items-center gap-2">
             <Layers className="w-4 h-4 text-[var(--emerald-600)]" />
@@ -166,34 +165,30 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tahap Selanjutnya (Roadmap) */}
+        {/* Roadmap Langkah Selanjutnya */}
         <div className="bg-gradient-to-br from-white to-[var(--emerald-50)]/40 rounded-2xl p-5 border border-[var(--slate-200)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs font-semibold text-[var(--emerald-700)] uppercase tracking-wider block">
-                Langkah 1 Selesai
+                Langkah 2 Selesai
               </span>
               <h4 className="text-base font-bold text-[var(--slate-900)] mt-0.5">
-                Siap Melanjutkan ke Langkah 2: Master Data & Impor Excel
+                Siap Melanjutkan ke Langkah 3: Pencatatan Masuk & Keluar
               </h4>
               <p className="text-xs text-[var(--slate-700)] mt-1">
-                Pembersihan 150+ baris data dari Excel, registrasi 13 pengguna fisik barang, dan form pencatatan.
+                Form Catat Keluar (&lt; 10 detik), Catat Masuk dengan konversi satuan, riwayat pergerakan stok, dan transaksi pembalik (REVERSAL).
               </p>
             </div>
-            <div className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] touch-target cursor-default shrink-0">
-              Langkah 1 Terverifikasi
+            <div className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm touch-target cursor-default shrink-0">
+              Langkah 2 Terverifikasi
               <ArrowRight className="w-4 h-4 ml-2" />
             </div>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-[var(--slate-200)] bg-white py-4 px-4 text-center">
-        <p className="text-xs text-[var(--slate-400)]">
-          &copy; 2026 PT Aksara Riksa Perdana &middot; Aplikasi Stock Opname & Inventaris (PWA)
-        </p>
-      </footer>
+      {/* Bottom Bar untuk HP */}
+      <BottomNav />
     </div>
   );
 }
