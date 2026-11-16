@@ -67,13 +67,13 @@ export default async function Home() {
       verified: true,
     },
     {
-      title: "Foto Bukti Pengecualian",
-      desc: "Kompresi otomatis di HP (<= 200 KB / 1280 px) untuk nota beli & selisih opname >= Rp 100.000.",
+      title: "Rekapitulasi & Ekspor Laporan",
+      desc: "Ekspor lembar kerja Excel (.xlsx), dokumen resmi Word (.docx), dan cetak PDF A4 berkop dinas.",
       verified: true,
     },
     {
-      title: "29 Unit Tests Terverifikasi",
-      desc: "Logika stok, konversi kemasan, toleransi opname, aturan approver, outbox offline, dan kompresi foto lolos 100%.",
+      title: "32 Unit Tests Terverifikasi",
+      desc: "Logika stok, konversi kemasan, toleransi opname, aturan approver, outbox offline, dan agregasi laporan lolos 100%.",
       verified: true,
     },
   ];
@@ -87,13 +87,13 @@ export default async function Home() {
         <div className="bg-white rounded-2xl p-5 sm:p-7 border border-[var(--slate-200)] shadow-xs">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-[var(--emerald-700)] text-xs font-semibold mb-3">
             <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-            Langkah 6 Aktif: Kompresi Foto di HP (&le; 200 KB) & Penyimpanan Bukti Siap Digunakan
+            Langkah 7 Aktif: Rekapitulasi & Ekspor Laporan (Excel, Word, PDF) Siap Digunakan
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
             PT Aksara Riksa Perdana &mdash; Stock Opname & Inventaris
           </h2>
           <p className="text-xs sm:text-sm text-[var(--slate-700)] mt-1.5 leading-relaxed">
-            Sistem PWA lapangan dengan kompresi foto di perangkat (&le; 1280 px / 200 KB), penaut foto bukti selisih opname (&ge; Rp 100.000), foto nota penerimaan barang, dan penampil lightbox.
+            Sistem manajemen inventaris lengkap: rekapitulasi stok, analisis pemakaian 13 pengguna barang (`people`), analisis proyek, serta ekspor dokumen dinas format Excel (.xlsx), Word (.docx), dan PDF A4 resmi.
           </p>
 
           {/* Banner Sesi Opname Aktif jika ada */}
@@ -206,11 +206,11 @@ export default async function Home() {
               <span className="text-xl font-bold text-[var(--slate-900)] num-mono">{stockTakes.length} Sesi</span>
               <span className="text-[11px] text-[var(--slate-700)] block mt-0.5">Lihat Sesi &rarr;</span>
             </Link>
-            <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
-              <span className="text-xs text-[var(--slate-400)] font-medium block">Pengujian Logika</span>
-              <span className="text-xl font-bold text-[var(--emerald-700)] num-mono">29 / 29</span>
-              <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Lolos 100%</span>
-            </div>
+            <Link href="/laporan" className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)] hover:border-slate-300">
+              <span className="text-xs text-[var(--slate-400)] font-medium block">Laporan & Audit</span>
+              <span className="text-xl font-bold text-[var(--emerald-700)] num-mono">3 Format</span>
+              <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Excel &bull; Word &bull; PDF &rarr;</span>
+            </Link>
           </div>
         </div>
 
@@ -297,21 +297,22 @@ export default async function Home() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs font-semibold text-[var(--emerald-700)] uppercase tracking-wider block">
-                Langkah 6 Selesai
+                Langkah 7 Selesai
               </span>
               <h4 className="text-base font-bold text-[var(--slate-900)] mt-0.5">
-                Siap Melanjutkan ke Langkah 7: Rekapitulasi & Ekspor Laporan (Excel, Word, PDF)
+                Siap Melanjutkan ke Langkah 8: Uji Pengguna (Sesi Opname Penuh Bersama Marsya & Ajay)
               </h4>
               <p className="text-xs text-[var(--slate-700)] mt-1">
-                Laporan rekapitulasi stok, analisis pemakaian barang per orang (13 orang) dan per proyek, ekspor lembar kerja Excel (.xlsx), dokumen resmi Word (.docx), dan PDF.
+                Marsya dan Ajay menjalankan satu sesi opname penuh di perangkat fisik: hitung buta 128 barang, pengukuran waktu pelaksanaan (&lt; 10 detik/transaksi), dan pencatatan kendala lapangan.
               </p>
             </div>
             <div className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm touch-target cursor-default shrink-0">
-              Langkah 6 Terverifikasi
+              Langkah 7 Terverifikasi
               <ArrowRight className="w-4 h-4 ml-2" />
             </div>
           </div>
         </div>
+
 
 
       </main>

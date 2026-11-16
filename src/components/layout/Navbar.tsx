@@ -70,6 +70,12 @@ export function Navbar() {
               Opname
             </Link>
             <Link
+              href="/laporan"
+              className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+            >
+              Laporan
+            </Link>
+            <Link
               href="/karyawan"
               className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
             >

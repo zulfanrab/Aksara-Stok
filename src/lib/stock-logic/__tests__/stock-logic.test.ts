@@ -488,5 +488,126 @@ describe("Foto Bukti Pengecualian & Kompresi Perangkat (Langkah 6)", () => {
   });
 });
 
+describe("Agregasi Laporan & Analisis Pemakaian (Langkah 7)", () => {
+  it("mengagregasi pemakaian barang per orang (people) dari mutasi OUT", async () => {
+    const { aggregateUsageByPerson } = await import("@/lib/services/reports");
+
+    const people = [
+      { id: "person-ajay", employee_code: "20220905001", name: "M. Fazar Maulana (Ajay)", position: "Technical Admin", is_active: true },
+      { id: "person-rio", employee_code: "20250404001", name: "Rio Adrianto", position: "Office Support", is_active: true },
+    ];
+
+    const movements = [
+      {
+        id: "mov-1",
+        item_id: "item-amplop",
+        type: "OUT",
+        qty: 5,
+        person_id: "person-ajay",
+        item: { code: "ATK-001", name: "Amplop Coklat", unit: { name: "Lembar" } },
+      },
+      {
+        id: "mov-2",
+        item_id: "item-amplop",
+        type: "OUT",
+        qty: 10,
+        person_id: "person-ajay",
+        item: { code: "ATK-001", name: "Amplop Coklat", unit: { name: "Lembar" } },
+      },
+      {
+        id: "mov-3",
+        item_id: "item-kertas",
+        type: "OUT",
+        qty: 2,
+        person_id: "person-rio",
+        item: { code: "ATK-002", name: "Kertas A4", unit: { name: "Rim" } },
+      },
+      {
+        id: "mov-4",
+        item_id: "item-kertas",
+        type: "IN", // Transaksi IN tidak boleh terhitung sebagai pemakaian karyawan
+        qty: 20,
+        person_id: "person-ajay",
+        item: { code: "ATK-002", name: "Kertas A4", unit: { name: "Rim" } },
+      },
+    ];
+
+    const summaries = aggregateUsageByPerson(movements, people);
+
+    // Ajay: 2 transaksi OUT, total qty 15
+    const ajaySummary = summaries.find((s) => s.person.id === "person-ajay");
+    expect(ajaySummary).toBeDefined();
+    expect(ajaySummary?.totalTransactions).toBe(2);
+    expect(ajaySummary?.totalQuantity).toBe(15);
+    expect(ajaySummary?.itemsBreakdown[0].totalQty).toBe(15);
+
+    // Rio: 1 transaksi OUT, total qty 2
+    const rioSummary = summaries.find((s) => s.person.id === "person-rio");
+    expect(rioSummary).toBeDefined();
+    expect(rioSummary?.totalTransactions).toBe(1);
+    expect(rioSummary?.totalQuantity).toBe(2);
+  });
+
+  it("mengagregasi pemakaian barang per proyek / klien", async () => {
+    const { aggregateUsageByProject } = await import("@/lib/services/reports");
+
+    const projects = [
+      { id: "proj-tml", name: "Riksa Uji PT TML", client: "PT TML", is_active: true },
+      { id: "proj-internal", name: "Operasional Kantor", client: "Internal", is_active: true },
+    ];
+
+    const movements = [
+      {
+        id: "mov-p1",
+        item_id: "item-masker",
+        type: "OUT",
+        qty: 50,
+        project_id: "proj-tml",
+        item: { code: "APD-001", name: "Masker KN95", unit: { name: "Pcs" } },
+      },
+      {
+        id: "mov-p2",
+        item_id: "item-sarung-tangan",
+        type: "OUT",
+        qty: 10,
+        project_id: "proj-tml",
+        item: { code: "APD-002", name: "Sarung Tangan Karet", unit: { name: "Pasang" } },
+      },
+    ];
+
+    const summaries = aggregateUsageByProject(movements, projects);
+    const tmlSummary = summaries.find((s) => s.project.id === "proj-tml");
+    expect(tmlSummary).toBeDefined();
+    expect(tmlSummary?.totalQuantity).toBe(60);
+    expect(tmlSummary?.itemsBreakdown).toHaveLength(2);
+  });
+
+  it("menghitung metrik ringkasan inventaris (aman, menipis, habis)", async () => {
+    const { calculateInventoryMetrics } = await import("@/lib/services/reports");
+
+    const items = [
+      { id: "item-1", min_stock: 10 } as any,
+      { id: "item-2", min_stock: 5 } as any,
+      { id: "item-3", min_stock: 2 } as any,
+    ];
+
+    const stockMap = {
+      "item-1": 15, // > 10 -> AMAN
+      "item-2": 3,  // <= 5 -> MENIPIS
+      "item-3": 0,  // <= 0 -> HABIS
+    };
+
+    const metrics = calculateInventoryMetrics(items, stockMap, 8, 4);
+
+    expect(metrics.totalItems).toBe(3);
+    expect(metrics.amanCount).toBe(1);
+    expect(metrics.menipisCount).toBe(1);
+    expect(metrics.habisCount).toBe(1);
+    expect(metrics.totalOutMovements).toBe(8);
+    expect(metrics.activePeopleCount).toBe(4);
+  });
+});
+
+
 
 
