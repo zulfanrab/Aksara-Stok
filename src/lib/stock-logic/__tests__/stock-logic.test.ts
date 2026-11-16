@@ -256,3 +256,47 @@ describe("Pemisahan Tugas: Penghitung Dilarang Menyetujui Hitungannya Sendiri", 
     expect(validation.conflictCount).toBe(0);
   });
 });
+
+describe("Siklus Catat Keluar, Catat Masuk, dan Pembalik (REVERSAL)", () => {
+  it("pencatatan OUT mengurangi saldo persediaan", () => {
+    const movements: StockMovementRecord[] = [
+      { id: "mov-in-1", item_id: "siera", type: "IN", qty: 100 },
+      { id: "mov-out-1", item_id: "siera", type: "OUT", qty: 24 },
+    ];
+    expect(calculateCurrentStock(movements)).toBe(76);
+  });
+
+  it("pencatatan IN dengan konversi kemasan (3 Pack @ 24 = 72 Pcs) menambah saldo dengan tepat", () => {
+    const qtyBuy = 3;
+    const factor = 24;
+    const qtyBase = convertUnit(qtyBuy, factor, "toBase");
+    expect(qtyBase).toBe(72);
+
+    const movements: StockMovementRecord[] = [
+      { id: "mov-in-siera", item_id: "siera", type: "IN", qty: qtyBase },
+    ];
+    expect(calculateCurrentStock(movements)).toBe(72);
+  });
+
+  it("transaksi REVERSAL atas transaksi OUT memulihkan saldo kembali utuh", () => {
+    // Awal 50, keluar 10 -> sisa 40. Lalu OUT 10 dibatalkan lewat REVERSAL (qty: -10)
+    // Formula: 50 - 10 - (-10) = 50
+    const movements: StockMovementRecord[] = [
+      { id: "mov-init", item_id: "amplop", type: "IN", qty: 50 },
+      { id: "mov-err-out", item_id: "amplop", type: "OUT", qty: 10 },
+      { id: "mov-reversal", item_id: "amplop", type: "REVERSAL", qty: -10 },
+    ];
+    expect(calculateCurrentStock(movements)).toBe(50);
+  });
+
+  it("transaksi REVERSAL atas transaksi IN membatalkan penambahan saldo kembali ke awal", () => {
+    // Awal 20, salah masuk 30 -> jadi 50. Dibatalkan lewat REVERSAL (qty: 30)
+    // Formula: 20 + 30 - 30 = 20
+    const movements: StockMovementRecord[] = [
+      { id: "mov-init", item_id: "kertas", type: "IN", qty: 20 },
+      { id: "mov-err-in", item_id: "kertas", type: "IN", qty: 30 },
+      { id: "mov-reversal", item_id: "kertas", type: "REVERSAL", qty: 30 },
+    ];
+    expect(calculateCurrentStock(movements)).toBe(20);
+  });
+});

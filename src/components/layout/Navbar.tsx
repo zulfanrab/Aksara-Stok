@@ -36,14 +36,32 @@ export function Navbar() {
             Master Barang
           </Link>
           <Link
+            href="/keluar"
+            className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+          >
+            Catat Keluar
+          </Link>
+          <Link
+            href="/masuk"
+            className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors font-semibold"
+          >
+            Catat Masuk
+          </Link>
+          <Link
+            href="/riwayat"
+            className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
+          >
+            Riwayat
+          </Link>
+          <Link
             href="/karyawan"
             className="px-3 py-2 rounded-lg text-[var(--slate-700)] hover:text-[var(--emerald-700)] hover:bg-[var(--emerald-50)] transition-colors"
           >
-            Karyawan (People)
+            Karyawan
           </Link>
           <span className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-[var(--emerald-50)] border border-[var(--emerald-500)]/20 text-[var(--emerald-700)] text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-[var(--emerald-500)]" />
-            Langkah 2 Aktif
+            Langkah 3 Aktif
           </span>
         </nav>
       </div>
