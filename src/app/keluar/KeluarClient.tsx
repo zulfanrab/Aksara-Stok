@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, Minus, ArrowLeft, CheckCircle2, AlertTriangle, User, Briefcase, FileText, Package } from "lucide-react";
+import { Search, Plus, Minus, ArrowLeft, CheckCircle2, AlertTriangle, User, Briefcase, FileText, Package, CloudOff } from "lucide-react";
 import Link from "next/link";
 import type { Item, Person, Project } from "@/types/inventory";
 import { recordStockOutAction } from "@/lib/actions/stock";
+import { enqueueOutboxItem, setCachedMasterData, getCachedMasterData } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync";
 import { cn } from "@/lib/utils";
 
 interface KeluarClientProps {
@@ -15,19 +17,55 @@ interface KeluarClientProps {
   stockMap: Record<string, number>;
 }
 
-export function KeluarClient({ items, people, projects, stockMap }: KeluarClientProps) {
+export function KeluarClient({ items: initialItems, people: initialPeople, projects: initialProjects, stockMap: initialStockMap }: KeluarClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  const [items, setItems] = useState<Item[]>(initialItems);
+  const [people, setPeople] = useState<Person[]>(initialPeople);
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [stockMap, setStockMap] = useState<Record<string, number>>(initialStockMap);
 
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [searchItem, setSearchItem] = useState<string>("");
   const [qty, setQty] = useState<number>(1);
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(people[0]?.id || "");
+  const [selectedPersonId, setSelectedPersonId] = useState<string>(initialPeople[0]?.id || "");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [note, setNote] = useState<string>("");
 
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [successData, setSuccessData] = useState<{ itemName: string; qty: number; unitName: string } | null>(null);
+  const [successData, setSuccessData] = useState<{
+    itemName: string;
+    qty: number;
+    unitName: string;
+    isOffline?: boolean;
+  } | null>(null);
+
+  // Cache master data ke IndexedDB saat online & hydrate jika offline
+  useEffect(() => {
+    async function syncCache() {
+      if (initialItems.length > 0) {
+        await setCachedMasterData("items", initialItems);
+        await setCachedMasterData("people", initialPeople);
+        await setCachedMasterData("projects", initialProjects);
+        await setCachedMasterData("stockMap", initialStockMap);
+      } else {
+        // Hydrate dari cache jika props server kosong karena offline
+        const cachedItems = await getCachedMasterData<Item[]>("items");
+        const cachedPeople = await getCachedMasterData<Person[]>("people");
+        const cachedProjects = await getCachedMasterData<Project[]>("projects");
+        const cachedStockMap = await getCachedMasterData<Record<string, number>>("stockMap");
+        if (cachedItems) setItems(cachedItems);
+        if (cachedPeople) {
+          setPeople(cachedPeople);
+          if (!selectedPersonId && cachedPeople[0]) setSelectedPersonId(cachedPeople[0].id);
+        }
+        if (cachedProjects) setProjects(cachedProjects);
+        if (cachedStockMap) setStockMap(cachedStockMap);
+      }
+    }
+    syncCache();
+  }, [initialItems, initialPeople, initialProjects, initialStockMap]);
 
   // Selected item object
   const selectedItem = items.find((i) => i.id === selectedItemId);
@@ -59,27 +97,84 @@ export function KeluarClient({ items, people, projects, stockMap }: KeluarClient
     setErrorMsg("");
     const clientUuid = crypto.randomUUID();
 
-    startTransition(async () => {
-      const res = await recordStockOutAction({
-        clientUuid,
-        itemId: selectedItemId,
-        qty,
-        personId: selectedPersonId,
-        projectId: selectedProjectId || null,
-        note: note.trim() || null,
-      });
-
-      if (res.success) {
+    // Mode Offline Langsung jika tidak ada jaringan
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueOutboxItem(
+        "STOCK_OUT",
+        {
+          itemId: selectedItemId,
+          qty,
+          personId: selectedPersonId,
+          projectId: selectedProjectId || null,
+          note: note.trim() || null,
+        },
+        clientUuid
+      ).then(() => {
+        notifyOutboxChanged();
+        // Optimistic stock update
+        setStockMap((prev) => ({
+          ...prev,
+          [selectedItemId]: (prev[selectedItemId] || 0) - qty,
+        }));
         setSuccessData({
           itemName: selectedItem?.name || "",
           qty,
           unitName: selectedItem?.unit?.name || "Pcs",
+          isOffline: true,
         });
-        // Reset form
         setQty(1);
         setNote("");
-      } else {
-        setErrorMsg(res.error || "Gagal mencatat pengeluaran.");
+      });
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await recordStockOutAction({
+          clientUuid,
+          itemId: selectedItemId,
+          qty,
+          personId: selectedPersonId,
+          projectId: selectedProjectId || null,
+          note: note.trim() || null,
+        });
+
+        if (res.success) {
+          setSuccessData({
+            itemName: selectedItem?.name || "",
+            qty,
+            unitName: selectedItem?.unit?.name || "Pcs",
+            isOffline: false,
+          });
+          // Reset form
+          setQty(1);
+          setNote("");
+        } else {
+          setErrorMsg(res.error || "Gagal mencatat pengeluaran.");
+        }
+      } catch (networkErr) {
+        // Fallback otomatis ke outbox bila koneksi tiba-tiba terputus saat submit
+        console.warn("Koneksi gagal, menyimpan ke antrean offline:", networkErr);
+        await enqueueOutboxItem(
+          "STOCK_OUT",
+          {
+            itemId: selectedItemId,
+            qty,
+            personId: selectedPersonId,
+            projectId: selectedProjectId || null,
+            note: note.trim() || null,
+          },
+          clientUuid
+        );
+        notifyOutboxChanged();
+        setSuccessData({
+          itemName: selectedItem?.name || "",
+          qty,
+          unitName: selectedItem?.unit?.name || "Pcs",
+          isOffline: true,
+        });
+        setQty(1);
+        setNote("");
       }
     });
   };
@@ -87,17 +182,28 @@ export function KeluarClient({ items, people, projects, stockMap }: KeluarClient
   if (successData) {
     return (
       <div className="max-w-md mx-auto bg-white rounded-2xl p-6 border border-[var(--slate-200)] shadow-xs text-center space-y-4">
-        <div className="w-14 h-14 rounded-full bg-[var(--emerald-50)] text-[var(--emerald-600)] flex items-center justify-center mx-auto">
-          <CheckCircle2 className="w-8 h-8" />
+        <div
+          className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${
+            successData.isOffline
+              ? "bg-amber-50 text-amber-600"
+              : "bg-[var(--emerald-50)] text-[var(--emerald-600)]"
+          }`}
+        >
+          {successData.isOffline ? <CloudOff className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
         </div>
-        <h2 className="text-xl font-bold text-[var(--slate-900)]">Pengeluaran Berhasil Dicatat!</h2>
+        <h2 className="text-xl font-bold text-[var(--slate-900)]">
+          {successData.isOffline ? "Disimpan di Antrean Offline HP!" : "Pengeluaran Berhasil Dicatat!"}
+        </h2>
         <p className="text-sm text-[var(--slate-700)]">
           <strong className="text-[var(--emerald-700)] num-mono font-bold">{successData.qty} {successData.unitName}</strong>{" "}
           &bull; {successData.itemName}
         </p>
-        <p className="text-xs text-[var(--slate-400)]">
-          Tercatat secara idempoten pada ledger append-only stock_movements.
+        <p className="text-xs text-[var(--slate-400)] leading-relaxed">
+          {successData.isOffline
+            ? "Data tersimpan di antrean perangkat dengan UUID idempoten. Akan disinkronkan otomatis ke server saat Anda terhubung kembali ke internet."
+            : "Tercatat secara idempoten pada ledger append-only stock_movements."}
         </p>
+
 
         <div className="pt-2 flex flex-col gap-2">
           <button

@@ -2,10 +2,12 @@
 
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Plus, Minus, User, EyeOff, CheckCircle2, ListFilter, X, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Plus, Minus, User, EyeOff, CheckCircle2, ListFilter, X, ShieldAlert, WifiOff } from "lucide-react";
 import type { StockTakeWithDetails, StockTakeLineWithItem } from "@/lib/services/inventory";
 import type { Person } from "@/types/inventory";
 import { submitCountLineAction } from "@/lib/actions/opname";
+import { enqueueOutboxItem, setCachedMasterData, getCachedMasterData } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync";
 import { cn } from "@/lib/utils";
 
 interface HitungClientProps {
@@ -44,15 +46,15 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
   const handleSaveAndNext = () => {
     if (!currentLine) return;
 
-    startTransition(async () => {
-      const res = await submitCountLineAction({
+    // Mode Offline Langsung
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueOutboxItem("STOCK_COUNT", {
         lineId: currentLine.id,
         countedQty,
         countedByPersonId: counterPersonId,
-      });
-
-      if (res.success) {
-        // Update local state
+      }).then(() => {
+        notifyOutboxChanged();
+        // Update local state optimistically
         setLocalLines((prev) =>
           prev.map((l, idx) =>
             idx === currentIndex
@@ -61,12 +63,60 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
           )
         );
 
-        // Haptic feedback jika didukung perangkat HP
         if (typeof window !== "undefined" && window.navigator?.vibrate) {
           window.navigator.vibrate(50);
         }
 
-        // Lanjut ke item berikutnya jika masih ada
+        if (currentIndex < localLines.length - 1) {
+          setCurrentIndex((prev) => prev + 1);
+        }
+      });
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await submitCountLineAction({
+          lineId: currentLine.id,
+          countedQty,
+          countedByPersonId: counterPersonId,
+        });
+
+        if (res.success) {
+          // Update local state
+          setLocalLines((prev) =>
+            prev.map((l, idx) =>
+              idx === currentIndex
+                ? { ...l, counted_qty: countedQty, counted_by_person_id: counterPersonId, status: "COUNTED" }
+                : l
+            )
+          );
+
+          if (typeof window !== "undefined" && window.navigator?.vibrate) {
+            window.navigator.vibrate(50);
+          }
+
+          if (currentIndex < localLines.length - 1) {
+            setCurrentIndex((prev) => prev + 1);
+          }
+        }
+      } catch (networkErr) {
+        console.warn("Koneksi gagal, menyimpan hitungan ke antrean offline:", networkErr);
+        await enqueueOutboxItem("STOCK_COUNT", {
+          lineId: currentLine.id,
+          countedQty,
+          countedByPersonId: counterPersonId,
+        });
+        notifyOutboxChanged();
+
+        setLocalLines((prev) =>
+          prev.map((l, idx) =>
+            idx === currentIndex
+              ? { ...l, counted_qty: countedQty, counted_by_person_id: counterPersonId, status: "COUNTED" }
+              : l
+          )
+        );
+
         if (currentIndex < localLines.length - 1) {
           setCurrentIndex((prev) => prev + 1);
         }

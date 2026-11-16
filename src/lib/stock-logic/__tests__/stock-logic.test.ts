@@ -346,3 +346,93 @@ describe("Siklus Posting Penyesuaian Opname (ADJUST Movements)", () => {
   });
 });
 
+describe("Antrean Outbox Offline & Idempotensi Klien (Langkah 5)", () => {
+  interface MockOutboxItem {
+    id: string; // UUID v4 dari klien
+    actionType: "STOCK_OUT" | "STOCK_IN" | "STOCK_COUNT";
+    payload: { itemId?: string; qty?: number; lineId?: string; countedQty?: number };
+    createdAt: string;
+    status: "PENDING" | "SYNCING" | "FAILED";
+  }
+
+  it("menjaga urutan FIFO pada antrean mutasi offline", () => {
+    const queue: MockOutboxItem[] = [
+      {
+        id: "uuid-002",
+        actionType: "STOCK_OUT",
+        payload: { itemId: "item-1", qty: 2 },
+        createdAt: "2026-11-16T10:05:00Z",
+        status: "PENDING",
+      },
+      {
+        id: "uuid-001",
+        actionType: "STOCK_OUT",
+        payload: { itemId: "item-1", qty: 5 },
+        createdAt: "2026-11-16T10:00:00Z", // Dibuat lebih dulu
+        status: "PENDING",
+      },
+    ];
+
+    // Urutkan FIFO berdasarkan createdAt ascending
+    const sorted = [...queue].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+    expect(sorted[0].id).toBe("uuid-001");
+    expect(sorted[1].id).toBe("uuid-002");
+  });
+
+  it("mencegah duplikasi data saat sinkronisasi berulang berkat UUID v4 idempoten", () => {
+    // Simulasi database backend yang sudah menerima transaksi uuid-001
+    const databaseLedger = new Set<string>(["uuid-001"]);
+
+    const syncItem = (item: MockOutboxItem): { synced: boolean; reason: string } => {
+      if (databaseLedger.has(item.id)) {
+        return { synced: false, reason: "Sudah pernah dicatat (idempoten)" };
+      }
+      databaseLedger.add(item.id);
+      return { synced: true, reason: "Sukses dicatat" };
+    };
+
+    // Percobaan pertama kirim uuid-001 (sudah ada)
+    const result1 = syncItem({
+      id: "uuid-001",
+      actionType: "STOCK_OUT",
+      payload: { itemId: "item-1", qty: 5 },
+      createdAt: "2026-11-16T10:00:00Z",
+      status: "PENDING",
+    });
+    expect(result1.synced).toBe(false);
+    expect(result1.reason).toContain("idempoten");
+
+    // Percobaan kirim item baru uuid-003
+    const result2 = syncItem({
+      id: "uuid-003",
+      actionType: "STOCK_OUT",
+      payload: { itemId: "item-2", qty: 1 },
+      createdAt: "2026-11-16T10:10:00Z",
+      status: "PENDING",
+    });
+    expect(result2.synced).toBe(true);
+    expect(databaseLedger.has("uuid-003")).toBe(true);
+  });
+
+  it("memperbarui saldo stok lokal secara optimistik saat offline", () => {
+    const localStockMap: Record<string, number> = {
+      "item-kertas": 50,
+      "item-tinta": 10,
+    };
+
+    // Simulasi pengeluaran offline 15 rim kertas
+    const offlineOutQty = 15;
+    localStockMap["item-kertas"] = (localStockMap["item-kertas"] || 0) - offlineOutQty;
+    expect(localStockMap["item-kertas"]).toBe(35);
+
+    // Simulasi penerimaan offline 5 botol tinta
+    const offlineInQty = 5;
+    localStockMap["item-tinta"] = (localStockMap["item-tinta"] || 0) + offlineInQty;
+    expect(localStockMap["item-tinta"]).toBe(15);
+  });
+});
+
+

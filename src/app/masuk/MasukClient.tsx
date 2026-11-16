@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
-import { Search, Plus, Minus, ArrowLeft, CheckCircle2, AlertTriangle, Building2, Receipt, DollarSign, PackageCheck, Layers } from "lucide-react";
+import { useState, useTransition, useMemo, useEffect } from "react";
+import { Search, Plus, Minus, ArrowLeft, CheckCircle2, AlertTriangle, Building2, Receipt, DollarSign, PackageCheck, Layers, CloudOff } from "lucide-react";
 import Link from "next/link";
 import type { Item, Unit } from "@/types/inventory";
 import type { UnitConversion } from "@/lib/services/inventory";
 import { recordStockInAction } from "@/lib/actions/stock";
+import { enqueueOutboxItem, setCachedMasterData, getCachedMasterData } from "@/lib/offline/db";
+import { notifyOutboxChanged } from "@/lib/offline/sync";
 import { cn } from "@/lib/utils";
 
 interface MasukClientProps {
@@ -14,8 +16,12 @@ interface MasukClientProps {
   conversions: UnitConversion[];
 }
 
-export function MasukClient({ items, units, conversions }: MasukClientProps) {
+export function MasukClient({ items: initialItems, units: initialUnits, conversions: initialConversions }: MasukClientProps) {
   const [isPending, startTransition] = useTransition();
+
+  const [items, setItems] = useState<Item[]>(initialItems);
+  const [units, setUnits] = useState<Unit[]>(initialUnits);
+  const [conversions, setConversions] = useState<UnitConversion[]>(initialConversions);
 
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [searchItem, setSearchItem] = useState<string>("");
@@ -34,7 +40,27 @@ export function MasukClient({ items, units, conversions }: MasukClientProps) {
     qtyBuy: number;
     buyUnitName: string;
     totalPrice?: number;
+    isOffline?: boolean;
   } | null>(null);
+
+  // Cache master data ke IndexedDB saat online
+  useEffect(() => {
+    async function syncCache() {
+      if (initialItems.length > 0) {
+        await setCachedMasterData("items", initialItems);
+        await setCachedMasterData("units", initialUnits);
+        await setCachedMasterData("conversions", initialConversions);
+      } else {
+        const cachedItems = await getCachedMasterData<Item[]>("items");
+        const cachedUnits = await getCachedMasterData<Unit[]>("units");
+        const cachedConversions = await getCachedMasterData<UnitConversion[]>("conversions");
+        if (cachedItems) setItems(cachedItems);
+        if (cachedUnits) setUnits(cachedUnits);
+        if (cachedConversions) setConversions(cachedConversions);
+      }
+    }
+    syncCache();
+  }, [initialItems, initialUnits, initialConversions]);
 
   const selectedItem = items.find((i) => i.id === selectedItemId);
 
@@ -86,20 +112,23 @@ export function MasukClient({ items, units, conversions }: MasukClientProps) {
     const clientUuid = crypto.randomUUID();
     const parsedPrice = unitPrice ? parseFloat(unitPrice.replace(/[^0-9]/g, "")) : undefined;
 
-    startTransition(async () => {
-      const res = await recordStockInAction({
-        clientUuid,
-        itemId: selectedItemId,
-        qtyBuy,
-        buyUnitId: activeBuyUnitId,
-        qtyBase,
-        unitPrice: parsedPrice,
-        supplier: supplier.trim() || null,
-        invoiceNo: invoiceNo.trim() || null,
-        note: note.trim() || null,
-      });
-
-      if (res.success) {
+    // Mode Offline Langsung jika tidak ada jaringan
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueOutboxItem(
+        "STOCK_IN",
+        {
+          itemId: selectedItemId,
+          qtyBuy,
+          buyUnitId: activeBuyUnitId,
+          qtyBase,
+          unitPrice: parsedPrice,
+          supplier: supplier.trim() || null,
+          invoiceNo: invoiceNo.trim() || null,
+          note: note.trim() || null,
+        },
+        clientUuid
+      ).then(() => {
+        notifyOutboxChanged();
         setSuccessData({
           itemName: selectedItem?.name || "",
           qtyBase,
@@ -107,15 +136,81 @@ export function MasukClient({ items, units, conversions }: MasukClientProps) {
           qtyBuy,
           buyUnitName,
           totalPrice: parsedPrice ? parsedPrice * qtyBuy : undefined,
+          isOffline: true,
         });
-        // Reset form
         setQtyBuy(1);
         setUnitPrice("");
         setSupplier("");
         setInvoiceNo("");
         setNote("");
-      } else {
-        setErrorMsg(res.error || "Gagal mencatat penerimaan barang.");
+      });
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await recordStockInAction({
+          clientUuid,
+          itemId: selectedItemId,
+          qtyBuy,
+          buyUnitId: activeBuyUnitId,
+          qtyBase,
+          unitPrice: parsedPrice,
+          supplier: supplier.trim() || null,
+          invoiceNo: invoiceNo.trim() || null,
+          note: note.trim() || null,
+        });
+
+        if (res.success) {
+          setSuccessData({
+            itemName: selectedItem?.name || "",
+            qtyBase,
+            baseUnitName,
+            qtyBuy,
+            buyUnitName,
+            totalPrice: parsedPrice ? parsedPrice * qtyBuy : undefined,
+            isOffline: false,
+          });
+          // Reset form
+          setQtyBuy(1);
+          setUnitPrice("");
+          setSupplier("");
+          setInvoiceNo("");
+          setNote("");
+        } else {
+          setErrorMsg(res.error || "Gagal mencatat penerimaan barang.");
+        }
+      } catch (networkErr) {
+        console.warn("Koneksi gagal, menyimpan ke antrean offline:", networkErr);
+        await enqueueOutboxItem(
+          "STOCK_IN",
+          {
+            itemId: selectedItemId,
+            qtyBuy,
+            buyUnitId: activeBuyUnitId,
+            qtyBase,
+            unitPrice: parsedPrice,
+            supplier: supplier.trim() || null,
+            invoiceNo: invoiceNo.trim() || null,
+            note: note.trim() || null,
+          },
+          clientUuid
+        );
+        notifyOutboxChanged();
+        setSuccessData({
+          itemName: selectedItem?.name || "",
+          qtyBase,
+          baseUnitName,
+          qtyBuy,
+          buyUnitName,
+          totalPrice: parsedPrice ? parsedPrice * qtyBuy : undefined,
+          isOffline: true,
+        });
+        setQtyBuy(1);
+        setUnitPrice("");
+        setSupplier("");
+        setInvoiceNo("");
+        setNote("");
       }
     });
   };
@@ -123,10 +218,18 @@ export function MasukClient({ items, units, conversions }: MasukClientProps) {
   if (successData) {
     return (
       <div className="max-w-md mx-auto bg-white rounded-2xl p-6 border border-[var(--slate-200)] shadow-xs text-center space-y-4">
-        <div className="w-14 h-14 rounded-full bg-[var(--emerald-50)] text-[var(--emerald-600)] flex items-center justify-center mx-auto">
-          <CheckCircle2 className="w-8 h-8" />
+        <div
+          className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${
+            successData.isOffline
+              ? "bg-amber-50 text-amber-600"
+              : "bg-[var(--emerald-50)] text-[var(--emerald-600)]"
+          }`}
+        >
+          {successData.isOffline ? <CloudOff className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
         </div>
-        <h2 className="text-xl font-bold text-[var(--slate-900)]">Penerimaan Barang Berhasil!</h2>
+        <h2 className="text-xl font-bold text-[var(--slate-900)]">
+          {successData.isOffline ? "Disimpan di Antrean Offline HP!" : "Penerimaan Barang Berhasil!"}
+        </h2>
         <div className="bg-[var(--bg-canvas)] p-3.5 rounded-xl border border-[var(--slate-200)] text-sm space-y-1">
           <div className="font-bold text-[var(--slate-900)]">{successData.itemName}</div>
           <div className="text-[var(--emerald-700)] font-bold text-base num-mono">
@@ -143,9 +246,12 @@ export function MasukClient({ items, units, conversions }: MasukClientProps) {
             </div>
           )}
         </div>
-        <p className="text-xs text-[var(--slate-400)]">
-          Tercatat di ledger append-only stock_movements & riwayat harga otomatis diperbarui.
+        <p className="text-xs text-[var(--slate-400)] leading-relaxed">
+          {successData.isOffline
+            ? "Tercatat di antrean IndexedDB offline dengan UUID v4 idempoten. Akan tersinkronisasi otomatis begitu perangkat mendeteksi koneksi."
+            : "Tercatat di ledger append-only stock_movements & riwayat harga otomatis diperbarui."}
         </p>
+
 
         <div className="pt-2 flex flex-col gap-2">
           <button
