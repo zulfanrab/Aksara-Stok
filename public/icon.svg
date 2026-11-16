@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#DFB23E" />
+      <stop offset="100%" stop-color="#B48A25" />
+    </linearGradient>
+  </defs>
+  <!-- Background Rounded Rect -->
+  <rect width="512" height="512" rx="112" fill="url(#brandGrad)" />
+  <!-- Gold Accent Ring / Gear Detail -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-dasharray="24 12" />
+  <!-- Inner White Box / Inventory Icon -->
+  <path d="M160 210 L256 155 L352 210 L352 320 L256 375 L160 320 Z" fill="#FFFFFF" opacity="0.95" />
+  <path d="M256 155 L256 375" stroke="#047857" stroke-width="8" stroke-linecap="round" />
+  <path d="M160 210 L256 265 L352 210" stroke="#047857" stroke-width="8" stroke-linejoin="round" />
+  <!-- Small Accent Badge -->
+  <circle cx="340" cy="180" r="28" fill="#B48A25" />
+  <path d="M330 180 L337 187 L352 172" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

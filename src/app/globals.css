@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand PT Aksara Riksa Perdana (Bagian 9 BLUEPRINT.md) */
+  --emerald-50: #ECFDF5;
+  --emerald-500: #10B981;
+  --emerald-600: #059669;
+  --emerald-700: #047857;
+  --brand-print: #299775; /* Kop & teks PDF cetak sesuai key visual */
+
+  --gold-light: #DFB23E;
+  --gold-main: #B48A25;
+  --gold-shadow: #6B4F10;
+
+  /* Netral */
+  --bg-canvas: #F8FAFB;
+  --bg-white: #FFFFFF;
+  --slate-900: #0F172A;
+  --slate-700: #334155;
+  --slate-400: #94A3B8;
+  --slate-200: #E2E8F0;
+
+  /* Fungsional: 500 = ikon/aksen, 50 = latar, 700 = teks */
+  --sky-50: #F0F9FF;
+  --sky-500: #0EA5E9;
+  --sky-700: #0369A1;
+
+  --amber-50: #FFFBEB;
+  --amber-500: #F59E0B;
+  --amber-700: #B45309;
+
+  --rose-50: #FFF1F2;
+  --rose-500: #F43F5E;
+  --rose-700: #BE123C;
+
+  --indigo-50: #EEF2FF;
+  --indigo-500: #6366F1;
+  --indigo-700: #4338CA;
+}
+
+@theme inline {
+  --color-emerald-50: var(--emerald-50);
+  --color-emerald-500: var(--emerald-500);
+  --color-emerald-600: var(--emerald-600);
+  --color-emerald-700: var(--emerald-700);
+  --color-brand-print: var(--brand-print);
+
+  --color-gold-light: var(--gold-light);
+  --color-gold-main: var(--gold-main);
+  --color-gold-shadow: var(--gold-shadow);
+
+  --color-bg-canvas: var(--bg-canvas);
+  --color-bg-white: var(--bg-white);
+  --color-slate-900: var(--slate-900);
+  --color-slate-700: var(--slate-700);
+  --color-slate-400: var(--slate-400);
+  --color-slate-200: var(--slate-200);
+
+  --color-sky-50: var(--sky-50);
+  --color-sky-500: var(--sky-500);
+  --color-sky-700: var(--sky-700);
+
+  --color-amber-50: var(--amber-50);
+  --color-amber-500: var(--amber-500);
+  --color-amber-700: var(--amber-700);
+
+  --color-rose-50: var(--rose-50);
+  --color-rose-500: var(--rose-500);
+  --color-rose-700: var(--rose-700);
+
+  --color-indigo-50: var(--indigo-50);
+  --color-indigo-500: var(--indigo-500);
+  --color-indigo-700: var(--indigo-700);
+
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--slate-700);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100dvh;
+}
+
+/* Touch target minimum 48px enforcement helper */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Tabular figures for monospace numbers */
+.num-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
