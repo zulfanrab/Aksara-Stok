@@ -295,10 +295,10 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
         <button
           onClick={() => setActiveTab("ALL")}
           className={cn(
-            "px-3.5 py-1.5 rounded-xl text-xs font-semibold touch-target transition-all",
+            "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
             activeTab === "ALL"
-              ? "bg-[var(--slate-900)] text-white"
-              : "bg-white border border-[var(--slate-200)] text-[var(--slate-700)]"
+              ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-xs border border-emerald-700"
+              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
           )}
         >
           Semua Item ({totalLines})
@@ -306,10 +306,10 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
         <button
           onClick={() => setActiveTab("DIFF")}
           className={cn(
-            "px-3.5 py-1.5 rounded-xl text-xs font-semibold touch-target transition-all",
+            "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
             activeTab === "DIFF"
-              ? "bg-[var(--amber-700)] text-white"
-              : "bg-white border border-[var(--slate-200)] text-[var(--slate-700)]"
+              ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-xs border border-amber-700"
+              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
           )}
         >
           Ada Selisih Fisik ({discrepancyLines.length})
@@ -317,10 +317,10 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
         <button
           onClick={() => setActiveTab("RECOUNT")}
           className={cn(
-            "px-3.5 py-1.5 rounded-xl text-xs font-semibold touch-target transition-all",
+            "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
             activeTab === "RECOUNT"
-              ? "bg-[var(--rose-700)] text-white"
-              : "bg-white border border-[var(--slate-200)] text-[var(--slate-700)]"
+              ? "bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-xs border border-rose-700"
+              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
           )}
         >
           Perlu Hitung Ulang ({recountNeededLines.length})

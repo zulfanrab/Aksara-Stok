@@ -210,15 +210,15 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                 className={cn(
                   "flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all touch-target shrink-0",
                   isSelected
-                    ? "bg-slate-900 text-white shadow-xs"
-                    : "bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100"
+                    ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-sm font-bold border border-emerald-700"
+                    : "bg-white border border-slate-200 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/40"
                 )}
               >
                 <span>{chip.name}</span>
                 <span
                   className={cn(
                     "px-1.5 py-0.2 rounded-full text-[10px] num-mono font-bold",
-                    isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                    isSelected ? "bg-white/25 text-white" : "bg-slate-100 text-slate-600"
                   )}
                 >
                   {chip.count}

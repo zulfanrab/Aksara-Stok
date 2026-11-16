@@ -248,8 +248,8 @@ export function LaporanClient({ data }: LaporanClientProps) {
           className={cn(
             "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm inline-flex items-center gap-2 transition-all touch-target shrink-0",
             activeTab === "STOCK"
-              ? "bg-[var(--emerald-700)] text-white shadow-xs"
-              : "bg-white text-[var(--slate-700)] hover:bg-slate-50 border border-[var(--slate-200)]"
+              ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-xs border border-emerald-700"
+              : "bg-white text-slate-700 hover:bg-emerald-50/50 hover:border-emerald-300 border border-slate-200"
           )}
         >
           <Package className="w-4 h-4" />
@@ -264,8 +264,8 @@ export function LaporanClient({ data }: LaporanClientProps) {
           className={cn(
             "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm inline-flex items-center gap-2 transition-all touch-target shrink-0",
             activeTab === "PEOPLE"
-              ? "bg-[var(--emerald-700)] text-white shadow-xs"
-              : "bg-white text-[var(--slate-700)] hover:bg-slate-50 border border-[var(--slate-200)]"
+              ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-xs border border-emerald-700"
+              : "bg-white text-slate-700 hover:bg-emerald-50/50 hover:border-emerald-300 border border-slate-200"
           )}
         >
           <Users className="w-4 h-4" />
@@ -280,8 +280,8 @@ export function LaporanClient({ data }: LaporanClientProps) {
           className={cn(
             "px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm inline-flex items-center gap-2 transition-all touch-target shrink-0",
             activeTab === "PROJECTS"
-              ? "bg-[var(--emerald-700)] text-white shadow-xs"
-              : "bg-white text-[var(--slate-700)] hover:bg-slate-50 border border-[var(--slate-200)]"
+              ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-xs border border-emerald-700"
+              : "bg-white text-slate-700 hover:bg-emerald-50/50 hover:border-emerald-300 border border-slate-200"
           )}
         >
           <Briefcase className="w-4 h-4" />

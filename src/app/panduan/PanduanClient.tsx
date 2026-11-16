@@ -192,8 +192,8 @@ export function PanduanClient() {
                 className={cn(
                   "p-3 rounded-2xl border-2 text-center transition-all touch-target flex flex-col items-center justify-center gap-1.5 min-h-[72px]",
                   isSelected
-                    ? "bg-slate-900 border-slate-900 text-white shadow-sm"
-                    : "bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                    ? "bg-emerald-600 border-emerald-700 text-white shadow-sm"
+                    : "bg-white border-slate-200 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/40"
                 )}
               >
                 <TopicIcon className={cn("w-5 h-5 stroke-[2.5]", isSelected ? "text-white" : "text-slate-600")} />

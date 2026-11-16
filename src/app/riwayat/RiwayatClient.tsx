@@ -126,15 +126,23 @@ export function RiwayatClient({ initialMovements }: RiwayatClientProps) {
               OUT: "Barang Keluar",
               REVERSAL: "Koreksi",
             };
+
+            const activeColors: Record<string, string> = {
+              ALL: "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-xs border border-emerald-700",
+              OUT: "bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-xs border border-rose-700",
+              IN: "bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-xs border border-sky-700",
+              REVERSAL: "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-xs border border-purple-700",
+            };
+
             return (
               <button
                 key={filter}
                 onClick={() => setSelectedFilter(filter)}
                 className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all touch-target shrink-0",
+                  "px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all touch-target shrink-0",
                   isSelected
-                    ? "bg-[var(--slate-900)] text-white shadow-xs"
-                    : "bg-[var(--bg-canvas)] border border-[var(--slate-200)] text-[var(--slate-700)] hover:bg-slate-100"
+                    ? activeColors[filter]
+                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                 )}
               >
                 {labels[filter]}
