@@ -13,16 +13,23 @@ export function Navbar() {
       <OfflineStatusBanner />
 
       <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--emerald-600)] to-[var(--emerald-700)] flex items-center justify-center p-2 shadow-sm">
-            <Image src="/icon.svg" alt="Aksara Stok" width={28} height={28} className="w-full h-full" />
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-xs shrink-0 border border-slate-200 bg-slate-900">
+            <Image
+              src="/logo.webp"
+              alt="Logo Aksara Stok"
+              width={36}
+              height={36}
+              className="w-full h-full object-cover"
+              priority
+            />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-[var(--slate-900)] tracking-tight leading-tight">
+            <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-tight">
               PT Aksara Riksa Perdana
             </h1>
-            <p className="text-[11px] text-[var(--slate-400)] font-medium">
-              Sistem Stok Opname & Inventaris
+            <p className="text-[11px] text-slate-500 font-semibold">
+              Aksara Stok &bull; Opname & Inventaris
             </p>
           </div>
         </Link>

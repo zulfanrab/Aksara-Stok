@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   CheckCircle2,
   ShieldCheck,
@@ -89,16 +90,30 @@ export default async function Home() {
 
         {/* Hero Card */}
         <div className="bg-white rounded-2xl p-5 sm:p-7 border border-[var(--slate-200)] shadow-xs">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-[var(--emerald-700)] text-xs font-semibold mb-3">
-            <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-            Langkah 9 Aktif: Peluncuran Paralel (Excel & PWA 2 Minggu) Menuju Penguncian Arsip
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-emerald-800 border border-emerald-200 text-xs font-bold">
+                <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
+                Langkah 9 Aktif: Peluncuran Paralel (Excel & PWA 2 Minggu) Menuju Penguncian Arsip
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                PT Aksara Riksa Perdana &mdash; Stock Opname & Inventaris
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-2xl">
+                Sistem manajemen inventaris lengkap: rekapitulasi stok, analisis pemakaian 13 pengguna barang (`people`), analisis proyek, serta ekspor dokumen dinas format Excel (.xlsx), Word (.docx), dan PDF A4 resmi.
+              </p>
+            </div>
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-sm shrink-0 border border-slate-200 bg-slate-900 hidden sm:block">
+              <Image
+                src="/logo.webp"
+                alt="Logo Aksara Stok"
+                width={80}
+                height={80}
+                className="w-full h-full object-cover"
+                priority
+              />
+            </div>
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
-            PT Aksara Riksa Perdana &mdash; Stock Opname & Inventaris
-          </h2>
-          <p className="text-xs sm:text-sm text-[var(--slate-700)] mt-1.5 leading-relaxed">
-            Sistem manajemen inventaris lengkap: rekapitulasi stok, analisis pemakaian 13 pengguna barang (`people`), analisis proyek, serta ekspor dokumen dinas format Excel (.xlsx), Word (.docx), dan PDF A4 resmi.
-          </p>
 
           {/* Banner Sesi Opname Aktif jika ada */}
           {activeOpname && (

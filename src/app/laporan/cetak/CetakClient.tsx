@@ -64,9 +64,12 @@ export function CetakClient({ data, activeTab }: CetakClientProps) {
         <div className="border-b-2 border-[#299775] pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-[#299775] text-white flex items-center justify-center font-bold text-xl tracking-tighter">
-                ARP
-              </div>
+              {/* Logo Resmi PT Aksara Riksa Perdana */}
+              <img
+                src="/logo.png"
+                alt="Logo PT Aksara Riksa Perdana"
+                className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-200 shadow-2xs"
+              />
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-[#299775]">
                   PT AKSARA RIKSA PERDANA

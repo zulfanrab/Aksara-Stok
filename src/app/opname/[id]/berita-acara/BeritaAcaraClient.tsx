@@ -64,13 +64,20 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
         {/* KOP SURAT RESMI PT AKSARA RIKSA PERDANA */}
         <div className="border-b-2 border-[var(--brand-print)] pb-4 space-y-1">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[var(--brand-print)] uppercase">
-                PT Aksara Riksa Perdana
-              </h1>
-              <p className="text-xs text-slate-600 font-medium">
-                Jasa Pemeriksaan & Pengujian Keselamatan dan Kesehatan Kerja (K3)
-              </p>
+            <div className="flex items-center gap-3.5">
+              <img
+                src="/logo.png"
+                alt="Logo Aksara Stok"
+                className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200"
+              />
+              <div>
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[var(--brand-print)] uppercase">
+                  PT Aksara Riksa Perdana
+                </h1>
+                <p className="text-xs text-slate-600 font-medium">
+                  Jasa Pemeriksaan & Pengujian Keselamatan dan Kesehatan Kerja (K3)
+                </p>
+              </div>
             </div>
             {/* Aksen Emas & Brand Badge */}
             <div className="text-right">
