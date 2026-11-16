@@ -128,31 +128,31 @@ export default async function Home() {
           {/* 3. Mulai Hitung (Stock Opname) */}
           <Link
             href={opnameTargetUrl}
-            className="flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white shadow-sm hover:from-[var(--emerald-700)] hover:to-[var(--emerald-700)] active:scale-98 touch-target transition-all min-h-[64px]"
+            className="flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-white border-2 border-emerald-600 hover:border-emerald-700 shadow-xs hover:shadow-sm active:scale-98 touch-target transition-all min-h-[64px]"
           >
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-white/20 text-white flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                 <ClipboardList className="w-6 h-6 stroke-[2.5]" />
               </div>
               <div className="text-left">
-                <span className="text-base font-bold text-white block leading-tight">
+                <span className="text-base font-bold text-slate-900 block leading-tight">
                   {activeOpname ? "Lanjutkan Hitung" : "Mulai Hitung"}
                 </span>
-                <span className="text-xs text-emerald-100 font-medium mt-0.5 block">
+                <span className="text-xs text-slate-600 font-medium mt-0.5 block">
                   {activeOpname ? activeOpname.name : "Stock opname fisik di gudang"}
                 </span>
               </div>
             </div>
-            <ChevronRight className="w-5 h-5 text-emerald-200 shrink-0" />
+            <ChevronRight className="w-5 h-5 text-emerald-700 shrink-0" />
           </Link>
         </div>
 
         {/* SATU KARTU TUNGGAL "PERLU PERHATIAN" */}
         {needsAttention ? (
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border-2 border-amber-300 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-amber-900">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border-2 border-slate-200 shadow-xs space-y-3">
+            <div className="flex items-center gap-2 text-slate-900">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <h2 className="text-xs font-bold uppercase tracking-wider">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
                 Perlu Perhatian
               </h2>
             </div>
@@ -161,15 +161,15 @@ export default async function Home() {
               {habisCount > 0 && (
                 <Link
                   href="/barang?filter=HABIS"
-                  className="flex items-center justify-between p-3 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100/70 text-rose-900 touch-target transition-colors"
+                  className="flex items-center justify-between p-3.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100/80 text-rose-950 touch-target transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0" />
-                    <span className="text-xs font-semibold">Barang Habis</span>
+                    <span className="text-sm font-bold text-rose-950">Barang Habis</span>
                   </div>
-                  <div className="flex items-center gap-1.5 font-bold text-xs num-mono text-rose-700">
+                  <div className="flex items-center gap-1.5 font-bold text-xs num-mono text-rose-950">
                     <span>{habisCount} barang</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-4 h-4 text-rose-700" />
                   </div>
                 </Link>
               )}
@@ -177,15 +177,15 @@ export default async function Home() {
               {menipisCount > 0 && (
                 <Link
                   href="/barang?filter=MENIPIS"
-                  className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100/70 text-amber-900 touch-target transition-colors"
+                  className="flex items-center justify-between p-3.5 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100/80 text-amber-950 touch-target transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-xs font-semibold">Stok Menipis</span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-600 shrink-0" />
+                    <span className="text-sm font-bold text-amber-950">Stok Menipis</span>
                   </div>
-                  <div className="flex items-center gap-1.5 font-bold text-xs num-mono text-amber-800">
+                  <div className="flex items-center gap-1.5 font-bold text-xs num-mono text-amber-950">
                     <span>{menipisCount} barang</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
+                    <ChevronRight className="w-4 h-4 text-amber-800" />
                   </div>
                 </Link>
               )}
