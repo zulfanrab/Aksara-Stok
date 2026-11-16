@@ -29,7 +29,7 @@ export function KaryawanClient({ initialPeople }: KaryawanClientProps) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
-              Daftar Pengguna Barang (People)
+              Daftar Karyawan
             </h1>
             <p className="text-xs text-[var(--slate-400)] mt-0.5">
               13 Karyawan Lapangan & Manajemen PT Aksara Riksa Perdana
@@ -42,11 +42,11 @@ export function KaryawanClient({ initialPeople }: KaryawanClientProps) {
           </div>
         </div>
 
-        {/* Banner Penjelasan Aturan Wajib Bagian 15 */}
-        <div className="mt-4 p-3.5 rounded-xl bg-[var(--sky-50)] border border-[var(--sky-500)]/20 flex items-start gap-3">
-          <ShieldAlert className="w-5 h-5 text-[var(--sky-700)] shrink-0 mt-0.5" />
-          <div className="text-xs text-[var(--sky-700)] leading-relaxed">
-            <strong>Aturan Wajib Bagian 15:</strong> Pengguna barang pada tabel <code className="font-mono bg-sky-100 px-1 py-0.5 rounded">people</code> tidak memiliki akun login. Daftar ini digunakan sebagai pilihan pemakai saat mencatat barang keluar dan peminjaman alat K3.
+        {/* Informasi Penggunaan */}
+        <div className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+          <Users className="w-5 h-5 text-slate-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-slate-600 leading-relaxed">
+            Daftar karyawan digunakan sebagai pilihan penanggung jawab saat mencatat barang keluar dan pemakaian alat kerja.
           </div>
         </div>
 

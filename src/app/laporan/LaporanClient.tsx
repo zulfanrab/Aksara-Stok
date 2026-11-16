@@ -162,7 +162,7 @@ export function LaporanClient({ data }: LaporanClientProps) {
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[var(--emerald-50)] text-[var(--emerald-700)] text-xs font-semibold mb-2">
               <Calendar className="w-3.5 h-3.5" />
-              <span>Laporan & Audit Inventaris</span>
+              <span>Laporan Inventaris</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
               Rekapitulasi & Analisis Pemakaian

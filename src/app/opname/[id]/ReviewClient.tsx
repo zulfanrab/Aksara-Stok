@@ -240,10 +240,10 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
               <div>
                 <h4 className="text-xs font-bold text-[var(--slate-900)] flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-                  <span>Tahap Otorisasi & Pembukuan Saldo</span>
+                  <span>Persetujuan & Pembukuan Hasil Hitung</span>
                 </h4>
                 <p className="text-[11px] text-[var(--slate-400)] mt-0.5">
-                  Aturan Wajib 3: Penyetuju dilarang keras merangkap sebagai petugas penghitung fisik di sesi ini.
+                  Penyetuju tidak boleh merangkap sebagai petugas yang menghitung fisik pada sesi ini.
                 </p>
               </div>
 

@@ -4,8 +4,8 @@ import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
 export const metadata = {
-  title: "Daftar Pengguna Barang (People) | PT Aksara Riksa Perdana",
-  description: "Daftar 13 karyawan pengguna barang PT Aksara Riksa Perdana",
+  title: "Daftar Karyawan | PT Aksara Riksa Perdana",
+  description: "Daftar karyawan dan penanggung jawab inventaris PT Aksara Riksa Perdana",
 };
 
 export default async function KaryawanPage() {

@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://aksara-stok.vercel.app"),
   title: "Aksara Stok Opname | PT Aksara Riksa Perdana",
-  description: "Aplikasi PWA Stock Opname & Inventaris PT Aksara Riksa Perdana",
+  description: "Aplikasi Inventaris & Stock Opname PT Aksara Riksa Perdana",
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Aksara Stok | PT Aksara Riksa Perdana",
-    description: "Sistem PWA Stock Opname & Inventaris PT Aksara Riksa Perdana",
+    description: "Sistem Inventaris & Stock Opname PT Aksara Riksa Perdana",
     images: [{ url: "/logo.png", width: 512, height: 512, alt: "Logo Aksara Stok" }],
   },
 };

@@ -67,8 +67,8 @@ export function BarangClient({ initialItems, categories }: BarangClientProps) {
             <h1 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
               Master Persediaan Barang
             </h1>
-            <p className="text-xs text-[var(--slate-400)] mt-0.5">
-              128 Item Terdaftar &bull; Hasil Pembersihan Data Excel Sesuai BLUEPRINT.md
+            <p className="text-xs text-slate-500 mt-0.5">
+              Daftar master seluruh barang dan alat inventaris
             </p>
           </div>
           <div className="inline-flex items-center gap-1.5 self-start sm:self-auto px-3 py-1.5 rounded-xl bg-[var(--bg-canvas)] border border-[var(--slate-200)] text-xs font-semibold text-[var(--slate-700)]">
@@ -84,7 +84,7 @@ export function BarangClient({ initialItems, categories }: BarangClientProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama barang, kode (ATK-001), atau kode Excel (1.1)..."
+            placeholder="Cari nama barang atau kode..."
             className="w-full pl-11 pr-10 py-3.5 rounded-xl border border-[var(--slate-200)] bg-[var(--bg-canvas)] text-sm text-[var(--slate-900)] placeholder:text-[var(--slate-400)] focus:outline-none focus:ring-2 focus:ring-[var(--emerald-600)] focus:bg-white touch-target transition-all"
           />
           {search && (
@@ -267,7 +267,7 @@ export function BarangClient({ initialItems, categories }: BarangClientProps) {
 
             <div className="grid grid-cols-2 gap-3 text-xs bg-[var(--bg-canvas)] p-3.5 rounded-xl border border-[var(--slate-200)]">
               <div>
-                <span className="text-[var(--slate-400)] block">Kode Asli Excel</span>
+                <span className="text-[var(--slate-400)] block">Kode Lama</span>
                 <span className="font-semibold text-[var(--slate-900)] num-mono">
                   {selectedItem.legacy_code || "Tidak ada"}
                 </span>
@@ -304,8 +304,8 @@ export function BarangClient({ initialItems, categories }: BarangClientProps) {
               </div>
             </div>
 
-            <div className="text-xs text-[var(--slate-400)] leading-relaxed">
-              * Saldo fisik belum tercatat. Saldo awal riil akan ditentukan melalui Sesi Opname Nol pada Langkah 4.
+            <div className="text-xs text-slate-500 leading-relaxed">
+              * Saldo fisik diperbarui otomatis melalui sesi opname fisik dan pencatatan transaksi masuk/keluar.
             </div>
 
             <button

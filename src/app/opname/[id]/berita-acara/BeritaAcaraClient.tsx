@@ -227,7 +227,7 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
 
         {/* PRINT FOOTER */}
         <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400">
-          <span>Dicetak pada: {printDate} &bull; Aksara Stok Opname PWA</span>
+          <span>Dicetak pada: {printDate} &bull; Aksara Stok</span>
           <span>Dokumen Sah PT Aksara Riksa Perdana</span>
         </div>
       </div>

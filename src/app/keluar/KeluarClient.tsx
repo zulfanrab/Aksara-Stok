@@ -247,7 +247,7 @@ export function KeluarClient({ items: initialItems, people: initialPeople, proje
             Catat Pengeluaran Barang
           </h1>
           <p className="text-xs text-[var(--slate-400)] mt-0.5">
-            Pencatatan cepat pemakaian barang habis pakai, APD, dan operasional (&lt; 10 detik).
+            Pencatatan pemakaian barang habis pakai, APD, dan operasional kerja.
           </p>
         </div>
 
