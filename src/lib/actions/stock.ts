@@ -194,3 +194,144 @@ export async function recordStockReversalAction(input: StockReversalInput) {
   revalidatePath("/riwayat");
   return { success: true, movementId: input.clientUuid };
 }
+
+export interface CreateItemInput {
+  name: string;
+  categoryCode: string;
+  baseUnitName: string;
+  minStock?: number;
+  targetStock?: number;
+  customCode?: string;
+  kind?: "CONSUMABLE" | "PPE" | "INSTRUMENT" | "SERVICE";
+}
+
+export async function createItemAction(input: CreateItemInput): Promise<{
+  success: boolean;
+  error?: string;
+  item?: { id: string; code: string; name: string };
+}> {
+  const supabase = createAdminClient();
+
+  if (!input.name || !input.name.trim()) {
+    return { success: false, error: "Nama barang wajib diisi." };
+  }
+  if (!input.categoryCode) {
+    return { success: false, error: "Pilih kategori barang." };
+  }
+  if (!input.baseUnitName) {
+    return { success: false, error: "Pilih satuan barang." };
+  }
+
+  // 1. Cek atau buat kategori (terutama jika kategori baru IT)
+  let { data: cat } = await supabase
+    .from("categories")
+    .select("id, code, name, kind")
+    .eq("code", input.categoryCode)
+    .maybeSingle();
+
+  if (!cat && input.categoryCode === "IT") {
+    const { data: newCat, error: catErr } = await supabase
+      .from("categories")
+      .insert({
+        code: "IT",
+        name: "Peralatan IT & Multimedia",
+        kind: "INSTRUMENT",
+      })
+      .select("id, code, name, kind")
+      .single();
+    if (catErr) {
+      return { success: false, error: "Gagal membuat kategori IT: " + catErr.message };
+    }
+    cat = newCat;
+  }
+
+  if (!cat) {
+    return { success: false, error: "Kategori tidak ditemukan." };
+  }
+
+  // 2. Cek atau buat satuan
+  let { data: unit } = await supabase
+    .from("units")
+    .select("id, name")
+    .ilike("name", input.baseUnitName.trim())
+    .maybeSingle();
+
+  if (!unit) {
+    const { data: newUnit, error: unitErr } = await supabase
+      .from("units")
+      .insert({ name: input.baseUnitName.trim() })
+      .select("id, name")
+      .single();
+    if (unitErr) {
+      return { success: false, error: "Gagal membuat satuan baru: " + unitErr.message };
+    }
+    unit = newUnit;
+  }
+
+  // 3. Buat kode otomatis jika tidak diisi manual
+  let finalCode = input.customCode ? input.customCode.trim().toUpperCase() : "";
+  if (!finalCode) {
+    const prefix = cat.code;
+    const { data: existingItems } = await supabase
+      .from("items")
+      .select("code")
+      .ilike("code", `${prefix}-%`);
+
+    let maxNum = 0;
+    if (existingItems && existingItems.length > 0) {
+      for (const it of existingItems) {
+        const match = it.code.match(/^[A-Z]+-(\d+)$/i);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      }
+    }
+    finalCode = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+  }
+
+  // Cek duplikasi kode
+  const { data: codeCheck } = await supabase
+    .from("items")
+    .select("id")
+    .eq("code", finalCode)
+    .maybeSingle();
+
+  if (codeCheck) {
+    return { success: false, error: `Kode barang ${finalCode} sudah digunakan.` };
+  }
+
+  // 4. Default lokasi
+  const { data: locs } = await supabase.from("locations").select("id").limit(1);
+  const defaultLocationId = locs && locs[0] ? locs[0].id : null;
+
+  // 5. Simpan master barang baru
+  const { data: newItem, error: itemErr } = await supabase
+    .from("items")
+    .insert({
+      code: finalCode,
+      name: input.name.trim(),
+      category_id: cat.id,
+      kind: input.kind || cat.kind,
+      base_unit_id: unit.id,
+      min_stock: input.minStock !== undefined ? Number(input.minStock) : 1,
+      target_stock: input.targetStock !== undefined ? Number(input.targetStock) : (Number(input.minStock || 1) * 2),
+      default_location_id: defaultLocationId,
+      has_expiry: false,
+      is_active: true,
+    })
+    .select("id, code, name")
+    .single();
+
+  if (itemErr) {
+    return { success: false, error: itemErr.message };
+  }
+
+  revalidatePath("/barang");
+  revalidatePath("/");
+  revalidatePath("/keluar");
+  revalidatePath("/masuk");
+  revalidatePath("/opname");
+
+  return { success: true, item: newItem };
+}

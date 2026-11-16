@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -58,29 +57,7 @@ export default async function Home() {
     <div className="min-h-screen bg-[var(--bg-canvas)] text-slate-800 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-lg w-full mx-auto p-4 sm:p-6 space-y-5 pb-24 md:pb-12">
-        {/* Header Identitas Ringkas */}
-        <div className="flex items-center gap-3 pt-1">
-          <div className="relative w-11 h-11 rounded-2xl overflow-hidden shadow-xs shrink-0 border border-slate-200 bg-slate-900">
-            <Image
-              src="/logo.webp"
-              alt="Logo Aksara Stok"
-              width={44}
-              height={44}
-              className="w-full h-full object-cover"
-              priority
-            />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-slate-900 tracking-tight leading-tight">
-              PT Aksara Riksa Perdana
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Aksara Stok &bull; Inventaris & Opname
-            </p>
-          </div>
-        </div>
-
+      <main className="flex-1 max-w-lg w-full mx-auto p-4 sm:p-6 space-y-5 pb-24 md:pb-12 pt-2 sm:pt-4">
         {/* TIGA TOMBOL UTAMA (BESAR & JELAS, MIN 56 PX) */}
         <div className="space-y-3">
           {/* 1. Catat Keluar */}
