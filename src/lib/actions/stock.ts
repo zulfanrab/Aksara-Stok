@@ -24,6 +24,7 @@ export interface StockInInput {
   supplier?: string | null;
   invoiceNo?: string | null;
   locationId?: string | null;
+  receiptPath?: string | null;
   note?: string | null;
   occurredAt?: string;
 }
@@ -115,6 +116,16 @@ export async function recordStockInAction(input: StockInInput) {
       unit_price_base: unitPriceBase,
       source: input.supplier ? `Pembelian dari ${input.supplier}` : "Penerimaan Barang",
       effective_date: (input.occurredAt || new Date().toISOString()).split("T")[0],
+    });
+  }
+
+  // 3. Catat di tabel purchases jika ada supplier, invoice, atau foto nota
+  if (input.supplier || input.invoiceNo || input.receiptPath) {
+    await supabase.from("purchases").insert({
+      supplier: input.supplier || "Supplier Umum",
+      invoice_no: input.invoiceNo || null,
+      receipt_path: input.receiptPath || null,
+      purchased_at: (input.occurredAt || new Date().toISOString()).split("T")[0],
     });
   }
 

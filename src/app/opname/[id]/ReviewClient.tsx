@@ -2,10 +2,13 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, AlertTriangle, AlertCircle, Clock, Printer, RotateCcw, ShieldCheck, UserCheck, Lock, ArrowRight, Eye, RefreshCw, X, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, AlertCircle, Clock, Printer, RotateCcw, ShieldCheck, UserCheck, Lock, ArrowRight, Eye, RefreshCw, X, ShieldAlert, Camera } from "lucide-react";
 import type { StockTakeWithDetails, StockTakeLineWithItem, Profile } from "@/lib/services/inventory";
 import { calculateStockTakeDiscrepancy } from "@/lib/stock-logic";
 import { approveStockTakeAction, postStockTakeAction, submitRecountLineAction } from "@/lib/actions/opname";
+import { updateStockTakeLinePhotoAction } from "@/lib/actions/upload";
+import { PhotoThumbnail } from "@/components/camera/PhotoThumbnail";
+import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
 import { cn } from "@/lib/utils";
 
 interface ReviewClientProps {
@@ -14,9 +17,11 @@ interface ReviewClientProps {
   profiles: Profile[];
 }
 
-export function ReviewClient({ stockTake, lines, profiles }: ReviewClientProps) {
+export function ReviewClient({ stockTake, lines: initialLines, profiles }: ReviewClientProps) {
+  const [lines, setLines] = useState<StockTakeLineWithItem[]>(initialLines);
   const [activeTab, setActiveTab] = useState<"ALL" | "DIFF" | "RECOUNT">("ALL");
   const [recountingLine, setRecountingLine] = useState<StockTakeLineWithItem | null>(null);
+  const [activePhotoLine, setActivePhotoLine] = useState<StockTakeLineWithItem | null>(null);
   const [recountQty, setRecountQty] = useState<number>(0);
   const [recountReason, setRecountReason] = useState<string>("");
   const [selectedApproverId, setSelectedApproverId] = useState<string>(
@@ -24,6 +29,17 @@ export function ReviewClient({ stockTake, lines, profiles }: ReviewClientProps) 
   );
   const [errorMsg, setErrorMsg] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  const handlePhotoUploaded = async (photoPath: string) => {
+    if (!activePhotoLine) return;
+
+    const lineId = activePhotoLine.id;
+    setLines((prev) =>
+      prev.map((l) => (l.id === lineId ? { ...l, photo_path: photoPath } : l))
+    );
+
+    await updateStockTakeLinePhotoAction(lineId, photoPath, stockTake.id);
+  };
 
   // Evaluasi selisih untuk setiap baris
   const evaluatedLines = useMemo(() => {
@@ -323,13 +339,14 @@ export function ReviewClient({ stockTake, lines, profiles }: ReviewClientProps) 
                 <th className="py-3 px-3 text-right">Selisih</th>
                 <th className="py-3 px-3">Penghitung</th>
                 <th className="py-3 px-3">Status Toleransi</th>
+                <th className="py-3 px-3">Bukti Foto</th>
                 <th className="py-3 px-4 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--slate-200)] text-xs sm:text-sm">
               {filteredLines.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-[var(--slate-400)]">
+                  <td colSpan={8} className="py-12 text-center text-[var(--slate-400)]">
                     Tidak ada item pada filter ini.
                   </td>
                 </tr>
@@ -413,6 +430,19 @@ export function ReviewClient({ stockTake, lines, profiles }: ReviewClientProps) 
                         )}
                       </td>
 
+                      <td className="py-3 px-3">
+                        {isCounted && diff !== 0 ? (
+                          <PhotoThumbnail
+                            photoPath={line.photo_path}
+                            altText={`Bukti: ${line.item?.name}`}
+                            required={line.requiresPhoto}
+                            onOpenUpload={() => setActivePhotoLine(line)}
+                          />
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+
                       <td className="py-3 px-4 text-center">
                         {stockTake.status !== "POSTED" && isCounted && diff !== 0 && (
                           <button
@@ -432,6 +462,7 @@ export function ReviewClient({ stockTake, lines, profiles }: ReviewClientProps) 
                   );
                 })
               )}
+
             </tbody>
           </table>
         </div>
@@ -527,6 +558,19 @@ export function ReviewClient({ stockTake, lines, profiles }: ReviewClientProps) 
           </div>
         </div>
       )}
+
+      {/* Modal Ambil & Unggah Foto Bukti */}
+      {activePhotoLine && (
+        <PhotoCaptureModal
+          isOpen={!!activePhotoLine}
+          onClose={() => setActivePhotoLine(null)}
+          title={`Foto Bukti: ${activePhotoLine.item?.name}`}
+          folder="opname"
+          entityId={activePhotoLine.id}
+          onUploadSuccess={handlePhotoUploaded}
+        />
+      )}
     </div>
   );
 }
+

@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
-import { Search, Plus, Minus, ArrowLeft, CheckCircle2, AlertTriangle, Building2, Receipt, DollarSign, PackageCheck, Layers, CloudOff } from "lucide-react";
+import { Search, Plus, Minus, ArrowLeft, CheckCircle2, AlertTriangle, Building2, Receipt, DollarSign, PackageCheck, Layers, CloudOff, Camera } from "lucide-react";
 import Link from "next/link";
 import type { Item, Unit } from "@/types/inventory";
 import type { UnitConversion } from "@/lib/services/inventory";
 import { recordStockInAction } from "@/lib/actions/stock";
 import { enqueueOutboxItem, setCachedMasterData, getCachedMasterData } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync";
+import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
+import { PhotoThumbnail } from "@/components/camera/PhotoThumbnail";
 import { cn } from "@/lib/utils";
 
 interface MasukClientProps {
@@ -31,6 +33,8 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
   const [supplier, setSupplier] = useState<string>("");
   const [invoiceNo, setInvoiceNo] = useState<string>("");
   const [note, setNote] = useState<string>("");
+  const [receiptPhotoPath, setReceiptPhotoPath] = useState<string>("");
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState<boolean>(false);
 
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [successData, setSuccessData] = useState<{
@@ -124,6 +128,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
           unitPrice: parsedPrice,
           supplier: supplier.trim() || null,
           invoiceNo: invoiceNo.trim() || null,
+          receiptPath: receiptPhotoPath || null,
           note: note.trim() || null,
         },
         clientUuid
@@ -143,6 +148,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
         setSupplier("");
         setInvoiceNo("");
         setNote("");
+        setReceiptPhotoPath("");
       });
       return;
     }
@@ -158,6 +164,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
           unitPrice: parsedPrice,
           supplier: supplier.trim() || null,
           invoiceNo: invoiceNo.trim() || null,
+          receiptPath: receiptPhotoPath || null,
           note: note.trim() || null,
         });
 
@@ -177,6 +184,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
           setSupplier("");
           setInvoiceNo("");
           setNote("");
+          setReceiptPhotoPath("");
         } else {
           setErrorMsg(res.error || "Gagal mencatat penerimaan barang.");
         }
@@ -192,6 +200,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
             unitPrice: parsedPrice,
             supplier: supplier.trim() || null,
             invoiceNo: invoiceNo.trim() || null,
+            receiptPath: receiptPhotoPath || null,
             note: note.trim() || null,
           },
           clientUuid
@@ -211,6 +220,7 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
         setSupplier("");
         setInvoiceNo("");
         setNote("");
+        setReceiptPhotoPath("");
       }
     });
   };
@@ -511,6 +521,24 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
                 />
               </div>
             </div>
+
+            {/* Foto Nota Pembelian (Opsional) */}
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+              <label className="text-xs font-bold text-[var(--slate-700)] flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-[var(--emerald-600)]" />
+                <span>Foto Nota / Kuitansi Pembelian (Opsional)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <PhotoThumbnail
+                  photoPath={receiptPhotoPath}
+                  altText="Nota Pembelian"
+                  onOpenUpload={() => setIsPhotoModalOpen(true)}
+                />
+                <span className="text-xs text-[var(--slate-400)]">
+                  {receiptPhotoPath ? "Nota terlampir & tersimpan" : "Ambil foto kuitansi/struk fisik untuk verifikasi pembukuan"}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -529,6 +557,17 @@ export function MasukClient({ items: initialItems, units: initialUnits, conversi
           {isPending ? "Menyimpan ke Ledger..." : `Simpan Penerimaan (+${qtyBase} ${baseUnitName})`}
         </button>
       </div>
+
+      {/* Modal Ambil & Unggah Foto Nota */}
+      <PhotoCaptureModal
+        isOpen={isPhotoModalOpen}
+        onClose={() => setIsPhotoModalOpen(false)}
+        title="Foto Nota / Kuitansi"
+        folder="receipts"
+        entityId={`nota-${Date.now()}`}
+        onUploadSuccess={(photoPath) => setReceiptPhotoPath(photoPath)}
+      />
     </div>
   );
 }
+

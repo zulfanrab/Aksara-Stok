@@ -435,4 +435,58 @@ describe("Antrean Outbox Offline & Idempotensi Klien (Langkah 5)", () => {
   });
 });
 
+describe("Foto Bukti Pengecualian & Kompresi Perangkat (Langkah 6)", () => {
+  // Import helper kompresor & storage logic
+  it("menghitung skala resolusi gambar dengan batas maksimum 1280 px secara presisi", async () => {
+    const { calculateScaledDimensions } = await import("@/lib/storage/compressor");
+
+    // Foto landscape resolusi kamera HP (4000 x 3000)
+    const landscape = calculateScaledDimensions(4000, 3000, 1280);
+    expect(landscape.width).toBe(1280);
+    expect(landscape.height).toBe(960);
+    expect(landscape.scaled).toBe(true);
+
+    // Foto portrait resolusi kamera HP (3000 x 4000)
+    const portrait = calculateScaledDimensions(3000, 4000, 1280);
+    expect(portrait.width).toBe(960);
+    expect(portrait.height).toBe(1280);
+    expect(portrait.scaled).toBe(true);
+
+    // Foto kecil di bawah 1280 px tidak perlu di-upscale
+    const small = calculateScaledDimensions(800, 600, 1280);
+    expect(small.width).toBe(800);
+    expect(small.height).toBe(600);
+    expect(small.scaled).toBe(false);
+  });
+
+  it("menghasilkan struktur path foto terorganisir per tahun dan bulan", async () => {
+    const { generatePhotoPath } = await import("@/lib/storage");
+
+    const fixedDate = new Date("2026-11-16T10:00:00Z");
+    const opnamePath = generatePhotoPath("opname", "line-uuid-12345", fixedDate);
+    expect(opnamePath).toBe("opname/2026/11/line-uuid-12345.jpg");
+
+    const receiptPath = generatePhotoPath("receipts", "inv-2026-001", fixedDate);
+    expect(receiptPath).toBe("receipts/2026/11/inv-2026-001.jpg");
+  });
+
+  it("menilai kewajiban foto bukti sesuai ambang batas Rp 100.000 dan alat ukur K3", async () => {
+    const { isPhotoRequiredForLine } = await import("@/lib/storage");
+
+    // ATK / barang biasa dengan selisih kecil (< Rp 100.000) -> TIDAK WAJIB FOTO
+    expect(isPhotoRequiredForLine(35000, "CONSUMABLE")).toBe(false);
+    expect(isPhotoRequiredForLine(-50000, "CONSUMABLE")).toBe(false);
+
+    // ATK / barang biasa dengan selisih besar (>= Rp 100.000) -> WAJIB FOTO
+    expect(isPhotoRequiredForLine(100000, "CONSUMABLE")).toBe(true);
+    expect(isPhotoRequiredForLine(-250000, "CONSUMABLE")).toBe(true);
+
+    // Alat ukur K3 (INSTRUMENT) -> SELALU WAJIB FOTO JIKA BERSLEISIH
+    expect(isPhotoRequiredForLine(1, "INSTRUMENT")).toBe(true);
+    expect(isPhotoRequiredForLine(-1, "INSTRUMENT")).toBe(true);
+    expect(isPhotoRequiredForLine(0, "INSTRUMENT")).toBe(false);
+  });
+});
+
+
 

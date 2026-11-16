@@ -77,6 +77,7 @@ export async function syncOutboxToServer(): Promise<SyncResult> {
             supplier: (item.payload.supplier as string) || null,
             invoiceNo: (item.payload.invoiceNo as string) || null,
             locationId: (item.payload.locationId as string) || null,
+            receiptPath: (item.payload.receiptPath as string) || null,
             note: (item.payload.note as string) || null,
             occurredAt: (item.payload.occurredAt as string) || item.createdAt,
           });

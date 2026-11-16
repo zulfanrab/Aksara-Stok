@@ -67,13 +67,13 @@ export default async function Home() {
       verified: true,
     },
     {
-      title: "Mode Offline & Antrean Outbox",
-      desc: "Transaksi dicatat ke IndexedDB lokal saat offline dan disinkronkan otomatis saat ada koneksi.",
+      title: "Foto Bukti Pengecualian",
+      desc: "Kompresi otomatis di HP (<= 200 KB / 1280 px) untuk nota beli & selisih opname >= Rp 100.000.",
       verified: true,
     },
     {
-      title: "26 Unit Tests Terverifikasi",
-      desc: "Logika stok, konversi kemasan, toleransi opname, aturan approver, dan antrean FIFO offline lolos 100%.",
+      title: "29 Unit Tests Terverifikasi",
+      desc: "Logika stok, konversi kemasan, toleransi opname, aturan approver, outbox offline, dan kompresi foto lolos 100%.",
       verified: true,
     },
   ];
@@ -87,13 +87,13 @@ export default async function Home() {
         <div className="bg-white rounded-2xl p-5 sm:p-7 border border-[var(--slate-200)] shadow-xs">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-[var(--emerald-50)] text-[var(--emerald-700)] text-xs font-semibold mb-3">
             <ShieldCheck className="w-4 h-4 text-[var(--emerald-600)]" />
-            Langkah 5 Aktif: Mode Offline Lapangan & Antrean Outbox Siap Digunakan
+            Langkah 6 Aktif: Kompresi Foto di HP (&le; 200 KB) & Penyimpanan Bukti Siap Digunakan
           </div>
           <h2 className="text-xl sm:text-2xl font-bold text-[var(--slate-900)] tracking-tight">
             PT Aksara Riksa Perdana &mdash; Stock Opname & Inventaris
           </h2>
           <p className="text-xs sm:text-sm text-[var(--slate-700)] mt-1.5 leading-relaxed">
-            Sistem PWA lapangan dengan dukungan offline penuh: Service Worker shell caching, master data IndexedDB, antrean mutasi ber-UUID idempoten, dan sinkronisasi otomatis saat terhubung kembali ke internet.
+            Sistem PWA lapangan dengan kompresi foto di perangkat (&le; 1280 px / 200 KB), penaut foto bukti selisih opname (&ge; Rp 100.000), foto nota penerimaan barang, dan penampil lightbox.
           </p>
 
           {/* Banner Sesi Opname Aktif jika ada */}
@@ -208,7 +208,7 @@ export default async function Home() {
             </Link>
             <div className="bg-[var(--bg-canvas)] rounded-xl p-3 border border-[var(--slate-200)]">
               <span className="text-xs text-[var(--slate-400)] font-medium block">Pengujian Logika</span>
-              <span className="text-xl font-bold text-[var(--emerald-700)] num-mono">26 / 26</span>
+              <span className="text-xl font-bold text-[var(--emerald-700)] num-mono">29 / 29</span>
               <span className="text-[11px] text-[var(--emerald-600)] block mt-0.5">Lolos 100%</span>
             </div>
           </div>
@@ -297,21 +297,22 @@ export default async function Home() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <span className="text-xs font-semibold text-[var(--emerald-700)] uppercase tracking-wider block">
-                Langkah 5 Selesai
+                Langkah 6 Selesai
               </span>
               <h4 className="text-base font-bold text-[var(--slate-900)] mt-0.5">
-                Siap Melanjutkan ke Langkah 6: Foto Bukti Pengecualian & Google Drive
+                Siap Melanjutkan ke Langkah 7: Rekapitulasi & Ekspor Laporan (Excel, Word, PDF)
               </h4>
               <p className="text-xs text-[var(--slate-700)] mt-1">
-                Kompresi foto di sisi klien (maks 1280 px / 200 KB), integrasi upload Google Drive via Apps Script Web App / Supabase Storage, thumbnail bukti selisih opname dan alat rusak.
+                Laporan rekapitulasi stok, analisis pemakaian barang per orang (13 orang) dan per proyek, ekspor lembar kerja Excel (.xlsx), dokumen resmi Word (.docx), dan PDF.
               </p>
             </div>
             <div className="inline-flex items-center justify-center px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--emerald-600)] to-[var(--emerald-700)] text-white text-sm font-semibold shadow-sm touch-target cursor-default shrink-0">
-              Langkah 5 Terverifikasi
+              Langkah 6 Terverifikasi
               <ArrowRight className="w-4 h-4 ml-2" />
             </div>
           </div>
         </div>
+
 
       </main>
 
