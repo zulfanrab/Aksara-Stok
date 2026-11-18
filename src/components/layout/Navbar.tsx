@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Sparkles } from "lucide-react";
 import { OfflineStatusBanner } from "./OfflineStatusBanner";
 import { NavbarStatusPill } from "./NavbarStatusPill";
+import { UpdateNotificationModal } from "@/components/pwa/UpdateNotificationModal";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -21,6 +23,7 @@ const NAV_ITEMS = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const [showChangelog, setShowChangelog] = useState(false);
 
   const isLinkActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -61,6 +64,17 @@ export function Navbar() {
         <div className="flex items-center gap-2">
           <NavbarStatusPill />
 
+          {/* Tombol Riwayat Pembaruan (Sparkles) */}
+          <button
+            type="button"
+            onClick={() => setShowChangelog(true)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 transition-all shadow-2xs touch-target"
+            title="Yang Baru di Aksara Stok (v1.1.0)"
+            aria-label="Yang Baru di Aksara Stok"
+          >
+            <Sparkles className="w-4 h-4 text-emerald-700" />
+          </button>
+
           {/* Tombol Panduan (?) Selalu Terlihat di Semua Layar */}
           <Link
             href="/panduan"
@@ -98,6 +112,14 @@ export function Navbar() {
           </nav>
         </div>
       </div>
+
+      {/* Modal Changelog Manual jika dibuka lewat tombol Sparkles */}
+      {showChangelog && (
+        <UpdateNotificationModal
+          forceOpen={true}
+          onClose={() => setShowChangelog(false)}
+        />
+      )}
     </header>
   );
 }

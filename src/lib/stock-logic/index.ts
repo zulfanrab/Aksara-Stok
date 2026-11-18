@@ -198,3 +198,75 @@ export function validateApproverIsNotCounter(
 
   return { valid: true, conflictCount: 0 };
 }
+
+/**
+ * Menghasilkan kode barang berikutnya dengan format PREFIX-NNN.
+ * Mencari angka terbesar dari seluruh kode barang yang ada (termasuk barang nonaktif).
+ * Nomor yang bolong sengaja dibiarkan.
+ */
+export function generateNextItemCode(prefix: string, existingCodes: string[]): string {
+  const cleanPrefix = prefix.trim().toUpperCase();
+  let maxNum = 0;
+
+  for (const c of existingCodes) {
+    if (!c) continue;
+    const regex = new RegExp(`^${cleanPrefix}-(\\d+)$`, "i");
+    const match = c.trim().match(regex);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (!isNaN(n) && n > maxNum) {
+        maxNum = n;
+      }
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  return `${cleanPrefix}-${String(nextNum).padStart(3, "0")}`;
+}
+
+/**
+ * Mendeteksi potensi kemiripan nama barang baru dengan barang yang sudah ada.
+ * Berguna untuk menampilkan kotak peringatan ramah saat input barang.
+ */
+export function findSimilarItems<T extends { id?: string; name: string; code?: string }>(
+  inputName: string,
+  existingItems: T[],
+  excludeId?: string
+): T[] {
+  const cleanInput = inputName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (cleanInput.length < 3) return [];
+
+  const inputWords = inputName
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ""))
+    .filter((w) => w.length > 2);
+
+  const matched = existingItems.filter((item) => {
+    if (excludeId && item.id === excludeId) return false;
+    const cleanExisting = item.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    if (cleanExisting === cleanInput) return true;
+
+    if (cleanExisting.includes(cleanInput) || cleanInput.includes(cleanExisting)) {
+      return true;
+    }
+
+    if (inputWords.length >= 2) {
+      const existingWords = item.name
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.replace(/[^a-z0-9]/g, ""))
+        .filter((w) => w.length > 2);
+
+      const overlap = inputWords.filter((w) => existingWords.includes(w));
+      if (overlap.length >= 2 && overlap.length >= Math.ceil(inputWords.length * 0.5)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+  return matched.slice(0, 3);
+}

@@ -1,55 +1,145 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
   X,
   Plus,
-  Filter,
-  Tag,
-  Layers,
-  Info,
-  CheckCircle2,
+  Edit2,
+  Lock,
+  Unlock,
+  Archive,
+  RotateCcw,
   AlertTriangle,
-  AlertCircle,
+  CheckCircle2,
+  Package,
+  Layers,
+  MapPin,
   Clock,
+  Sparkles,
 } from "lucide-react";
-import type { Item, Category, Unit } from "@/types/inventory";
-import { createItemAction } from "@/lib/actions/stock";
+import type { Item, Category, Unit, Location } from "@/types/inventory";
+import {
+  createItemAction,
+  updateItemAction,
+  toggleItemActiveAction,
+  checkItemTransactionsAction,
+} from "@/lib/actions/stock";
+import { generateNextItemCode, findSimilarItems } from "@/lib/stock-logic";
 import { cn } from "@/lib/utils";
 
 interface BarangClientProps {
   initialItems: Item[];
   categories: Category[];
   units?: Unit[];
+  locations?: Location[];
 }
 
-export function BarangClient({ initialItems, categories, units = [] }: BarangClientProps) {
+export function BarangClient({
+  initialItems,
+  categories,
+  units = [],
+  locations = [],
+}: BarangClientProps) {
   const router = useRouter();
   const [itemsList, setItemsList] = useState<Item[]>(initialItems);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
+  // State Pengecekan Riwayat Transaksi untuk Barang Terpilih
+  const [itemTxInfo, setItemTxInfo] = useState<{
+    loading: boolean;
+    hasTransactions: boolean;
+    count: number;
+  }>({ loading: false, hasTransactions: false, count: 0 });
+
   // State Modal Tambah Barang Baru
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newItemName, setNewItemName] = useState("");
-  const [newItemCategory, setNewItemCategory] = useState("IT");
-  const [newItemUnit, setNewItemUnit] = useState("Unit");
+  const [newItemCategory, setNewItemCategory] = useState("ATK");
+  const [newItemUnit, setNewItemUnit] = useState("Pcs");
   const [customUnit, setCustomUnit] = useState("");
-  const [newItemKind, setNewItemKind] = useState<"CONSUMABLE" | "PPE" | "INSTRUMENT" | "SERVICE">("INSTRUMENT");
   const [newItemMinStock, setNewItemMinStock] = useState("1");
-  const [customCode, setCustomCode] = useState("");
+  const [newItemLocation, setNewItemLocation] = useState("");
   const [addError, setAddError] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+
+  // State Modal Ubah Barang (Edit)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editUnit, setEditUnit] = useState("");
+  const [editCustomUnit, setEditCustomUnit] = useState("");
+  const [editMinStock, setEditMinStock] = useState("1");
+  const [editLocation, setEditLocation] = useState("");
+  const [editError, setEditError] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // State Konfirmasi Ubah Kode/Satuan (jika belum ada transaksi)
+  const [confirmUnlockCodeUnit, setConfirmUnlockCodeUnit] = useState(false);
+
+  // Sinkronisasi data saat router.refresh()
+  useEffect(() => {
+    setItemsList(initialItems);
+  }, [initialItems]);
+
+  // Saat item dipilih, cek apakah sudah memiliki transaksi di stock_movements
+  useEffect(() => {
+    if (!selectedItem) {
+      setItemTxInfo({ loading: false, hasTransactions: false, count: 0 });
+      return;
+    }
+
+    let isMounted = true;
+    setItemTxInfo({ loading: true, hasTransactions: false, count: 0 });
+
+    checkItemTransactionsAction(selectedItem.id).then((res) => {
+      if (isMounted) {
+        setItemTxInfo({
+          loading: false,
+          hasTransactions: res.hasTransactions,
+          count: res.transactionCount,
+        });
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedItem]);
+
+  // Daftar Kategori gabungan (termasuk IT)
+  const allCategoryOptions = useMemo(() => {
+    const hasIT = categories.some((c) => c.code === "IT");
+    if (!hasIT) {
+      return [
+        ...categories,
+        { id: "cat-it", code: "IT", name: "Peralatan IT & Multimedia", kind: "INSTRUMENT" as const },
+      ];
+    }
+    return categories;
+  }, [categories]);
+
+  // Hitung jumlah aktif vs nonaktif
+  const activeItems = useMemo(() => itemsList.filter((i) => i.is_active !== false), [itemsList]);
+  const inactiveItems = useMemo(() => itemsList.filter((i) => i.is_active === false), [itemsList]);
 
   // Filter items berdasarkan kategori dan kata kunci pencarian
   const filteredItems = useMemo(() => {
     let result = itemsList;
 
-    if (selectedCategory !== "ALL") {
-      result = result.filter((item) => item.category?.code === selectedCategory);
+    if (selectedCategory === "INACTIVE") {
+      // Hanya barang nonaktif
+      result = inactiveItems;
+    } else {
+      // Barang aktif normal
+      result = activeItems;
+      if (selectedCategory !== "ALL") {
+        result = result.filter((item) => item.category?.code === selectedCategory);
+      }
     }
 
     if (search.trim()) {
@@ -62,28 +152,19 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
       );
     }
 
-    return result;
-  }, [itemsList, selectedCategory, search]);
+    // Urutkan prefix lalu nomor
+    return [...result].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  }, [itemsList, activeItems, inactiveItems, selectedCategory, search]);
 
-  // Daftar Kategori gabungan (termasuk IT jika belum ada di database)
-  const allCategoryOptions = useMemo(() => {
-    const hasIT = categories.some((c) => c.code === "IT");
-    if (!hasIT) {
-      return [
-        { id: "cat-it", code: "IT", name: "Peralatan IT & Multimedia", kind: "INSTRUMENT" as const },
-        ...categories,
-      ];
-    }
-    return categories;
-  }, [categories]);
-
+  // Chip Filter Kategori Horizontal
   const categoryChips = [
-    { code: "ALL", name: "Semua Kategori", count: itemsList.length },
+    { code: "ALL", name: "Semua Kategori", count: activeItems.length },
     ...allCategoryOptions.map((c) => ({
       code: c.code,
       name: c.name,
-      count: itemsList.filter((i) => i.category?.code === c.code).length,
+      count: activeItems.filter((i) => i.category?.code === c.code).length,
     })),
+    { code: "INACTIVE", name: "Arsip / Nonaktif", count: inactiveItems.length },
   ];
 
   // Daftar Pilihan Satuan
@@ -93,7 +174,24 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
     return Array.from(set);
   }, [units]);
 
-  const handleSaveItem = async () => {
+  // Deteksi Nama Mirip Secara Real-Time untuk Tambah Barang
+  const similarItemsToAdd = useMemo(() => {
+    return findSimilarItems(newItemName, itemsList);
+  }, [newItemName, itemsList]);
+
+  // Deteksi Nama Mirip Secara Real-Time untuk Ubah Barang
+  const similarItemsToEdit = useMemo(() => {
+    return findSimilarItems(editName, itemsList, selectedItem?.id);
+  }, [editName, itemsList, selectedItem]);
+
+  // Pratinjau Kode Otomatis untuk Barang Baru (termasuk barang nonaktif)
+  const previewNewCode = useMemo(() => {
+    const existingCodes = itemsList.map((i) => i.code);
+    return generateNextItemCode(newItemCategory, existingCodes);
+  }, [newItemCategory, itemsList]);
+
+  // Simpan Tambah Barang Baru
+  const handleSaveNewItem = async () => {
     if (!newItemName.trim()) {
       setAddError("Nama barang wajib diisi.");
       return;
@@ -114,15 +212,11 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
         categoryCode: newItemCategory,
         baseUnitName: effectiveUnit,
         minStock: Number(newItemMinStock) || 1,
-        customCode: customCode.trim() || undefined,
-        kind: newItemKind,
       });
 
       if (res.success && res.item) {
         setIsAddModalOpen(false);
-        // Reset form
         setNewItemName("");
-        setCustomCode("");
         setNewItemMinStock("1");
         setCustomUnit("");
         router.refresh();
@@ -133,6 +227,85 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
       setAddError(err.message || "Terjadi kesalahan saat menyimpan barang.");
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  // Buka Modal Edit Barang
+  const handleOpenEditModal = () => {
+    if (!selectedItem) return;
+    setEditName(selectedItem.name);
+    setEditCategory(selectedItem.category?.code || "ATK");
+    setEditCode(selectedItem.code);
+    setEditUnit(selectedItem.unit?.name || "Pcs");
+    setEditCustomUnit("");
+    setEditMinStock(String(selectedItem.min_stock || 0));
+    setEditLocation(selectedItem.default_location_id || "");
+    setEditError("");
+    setConfirmUnlockCodeUnit(false);
+    setIsEditModalOpen(true);
+  };
+
+  // Simpan Perubahan Barang (Edit)
+  const handleSaveEditItem = async () => {
+    if (!selectedItem) return;
+    if (!editName.trim()) {
+      setEditError("Nama barang wajib diisi.");
+      return;
+    }
+
+    const effectiveUnit = editUnit === "CUSTOM" ? editCustomUnit.trim() : editUnit;
+    if (!effectiveUnit) {
+      setEditError("Nama satuan wajib diisi.");
+      return;
+    }
+
+    setEditError("");
+    setIsSavingEdit(true);
+
+    try {
+      const res = await updateItemAction({
+        itemId: selectedItem.id,
+        name: editName.trim(),
+        categoryCode: editCategory,
+        minStock: Number(editMinStock) || 0,
+        defaultLocationId: editLocation || null,
+        code: !itemTxInfo.hasTransactions ? editCode.trim().toUpperCase() : undefined,
+        baseUnitName: !itemTxInfo.hasTransactions ? effectiveUnit : undefined,
+      });
+
+      if (res.success) {
+        setIsEditModalOpen(false);
+        setSelectedItem(null);
+        router.refresh();
+      } else {
+        setEditError(res.error || "Gagal memperbarui barang.");
+      }
+    } catch (err: any) {
+      setEditError(err.message || "Terjadi kesalahan saat menyimpan perubahan.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // Nonaktifkan atau Aktifkan Kembali Barang
+  const handleToggleItemStatus = async (item: Item, newStatus: boolean) => {
+    const actionLabel = newStatus ? "mengaktifkan kembali" : "menonaktifkan";
+    const confirmMsg = newStatus
+      ? `Aktifkan kembali barang "${item.name}" (${item.code})? Barang akan kembali muncul di daftar normal dan form transaksi.`
+      : `Nonaktifkan barang "${item.name}" (${item.code})? Barang akan disembunyikan dari daftar normal dan form transaksi, namun kodenya tetap tercatat di sistem.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await toggleItemActiveAction(item.id, newStatus);
+      if (res.success) {
+        setSelectedItem(null);
+        router.refresh();
+      } else {
+        alert(res.error || `Gagal ${actionLabel} barang.`);
+      }
+    } catch (err: any) {
+      alert(err.message || `Terjadi kesalahan saat ${actionLabel} barang.`);
     }
   };
 
@@ -159,22 +332,25 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
               Master Persediaan Barang
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Daftar master seluruh barang dan alat inventaris
+              Daftar master seluruh barang, peralatan kerja, dan inventaris gudang
             </p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <button
               type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs touch-target transition-all"
+              onClick={() => {
+                setAddError("");
+                setIsAddModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-95 text-white text-xs font-bold shadow-xs touch-target transition-all"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Tambah Barang</span>
             </button>
             <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
               <span className="num-mono font-bold text-emerald-700">{filteredItems.length}</span>
-              <span>dari {itemsList.length}</span>
+              <span>dari {itemsList.length} total</span>
             </div>
           </div>
         </div>
@@ -186,11 +362,12 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama barang atau kode..."
+            placeholder="Cari nama barang atau kode (contoh: ATK-001, Helm, Kertas)..."
             className="w-full pl-11 pr-10 py-3.5 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 touch-target transition-all"
           />
           {search && (
             <button
+              type="button"
               onClick={() => setSearch("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-700 touch-target"
             >
@@ -203,6 +380,8 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
         <div className="flex items-center gap-2 overflow-x-auto pt-3 pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
           {categoryChips.map((chip) => {
             const isSelected = selectedCategory === chip.code;
+            const isInactiveTab = chip.code === "INACTIVE";
+
             return (
               <button
                 key={chip.code}
@@ -210,7 +389,11 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                 className={cn(
                   "flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all touch-target shrink-0",
                   isSelected
-                    ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-sm font-bold border border-emerald-700"
+                    ? isInactiveTab
+                      ? "bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-sm font-bold border border-rose-700"
+                      : "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-sm font-bold border border-emerald-700"
+                    : isInactiveTab
+                    ? "bg-rose-50/70 border border-rose-200 text-rose-800 hover:bg-rose-100"
                     : "bg-white border border-slate-200 text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/40"
                 )}
               >
@@ -218,7 +401,7 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                 <span
                   className={cn(
                     "px-1.5 py-0.2 rounded-full text-[10px] num-mono font-bold",
-                    isSelected ? "bg-white/25 text-white" : "bg-slate-100 text-slate-600"
+                    isSelected ? "bg-white/25 text-white" : isInactiveTab ? "bg-rose-200 text-rose-900" : "bg-slate-100 text-slate-600"
                   )}
                 >
                   {chip.count}
@@ -233,9 +416,13 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
         {filteredItems.length === 0 ? (
           <div className="p-12 text-center text-slate-400 space-y-2">
-            <Info className="w-8 h-8 mx-auto text-slate-300" />
+            <Package className="w-8 h-8 mx-auto text-slate-300" />
             <p className="text-sm font-semibold text-slate-700">Barang tidak ditemukan</p>
-            <p className="text-xs text-slate-400">Coba kata kunci lain atau pilih Semua Kategori.</p>
+            <p className="text-xs text-slate-400">
+              {selectedCategory === "INACTIVE"
+                ? "Tidak ada barang yang sedang dinonaktifkan."
+                : "Coba kata kunci lain atau pilih Semua Kategori."}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -243,7 +430,6 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
               <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4">Kode</th>
-                  <th className="py-3 px-4">Kode Lama</th>
                   <th className="py-3 px-4">Nama Barang</th>
                   <th className="py-3 px-4 hidden md:table-cell">Kategori</th>
                   <th className="py-3 px-4 hidden sm:table-cell">Jenis</th>
@@ -257,16 +443,32 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                   <tr
                     key={item.id}
                     onClick={() => setSelectedItem(item)}
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors active:bg-slate-100 touch-target"
+                    className={cn(
+                      "cursor-pointer transition-colors touch-target",
+                      item.is_active === false
+                        ? "bg-slate-50/80 hover:bg-slate-100/80 opacity-75"
+                        : "hover:bg-slate-50/80 active:bg-slate-100"
+                    )}
                   >
                     <td className="py-3 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">
-                      {item.code}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-slate-400 text-xs">
-                      {item.legacy_code || "-"}
+                      <div className="flex items-center gap-1.5">
+                        <span>{item.code}</span>
+                        {item.is_active === false && (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-rose-100 text-rose-800 font-bold">
+                            Nonaktif
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 font-medium text-slate-900">
-                      {item.name}
+                      <div>
+                        <span>{item.name}</span>
+                        {item.legacy_code && (
+                          <span className="block text-[11px] text-slate-400 font-mono">
+                            Eks: {item.legacy_code}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 hidden md:table-cell text-slate-600 text-xs">
                       {item.category?.name || "-"}
@@ -280,11 +482,18 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                     <td className="py-3 px-4 text-center num-mono font-bold text-slate-700">
                       {item.min_stock}
                     </td>
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium">
-                        <Clock className="w-3 h-3 text-slate-400" />
-                        Belum dihitung
-                      </span>
+                    <td className="py-3 px-4 text-center">
+                      {item.is_active !== false ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Aktif</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700">
+                          <Archive className="w-3.5 h-3.5" />
+                          <span>Nonaktif</span>
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -294,76 +503,330 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
         )}
       </div>
 
-      {/* MODAL DETAIL BARANG */}
-      {selectedItem && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl p-5 border border-slate-200 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+      {/* MODAL DETAIL BARANG (DENGAN TOMBOL UBAH & NONAKTIFKAN) */}
+      {selectedItem && !isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-start justify-between">
               <div>
-                <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="num-mono font-bold text-xs px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
                   {selectedItem.code}
                 </span>
-                <h3 className="text-base font-bold text-slate-900 mt-2">
+                <h3 className="text-lg font-bold text-slate-900 mt-2 leading-tight">
                   {selectedItem.name}
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedItem(null)}
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-lg touch-target"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg touch-target"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-              <div>
-                <span className="text-slate-500 block">Kode Lama</span>
-                <span className="font-semibold text-slate-900 num-mono">
-                  {selectedItem.legacy_code || "Tidak ada"}
+            {/* Status Transaksi Banner */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs flex items-center justify-between">
+              <span className="text-slate-600 font-medium">Status Mutasi Stok:</span>
+              {itemTxInfo.loading ? (
+                <span className="text-slate-400">Memeriksa...</span>
+              ) : itemTxInfo.hasTransactions ? (
+                <span className="font-bold text-emerald-800 flex items-center gap-1">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{itemTxInfo.count} transaksi tercatat</span>
                 </span>
-              </div>
+              ) : (
+                <span className="font-bold text-amber-700 flex items-center gap-1">
+                  <Unlock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Belum ada transaksi</span>
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-100">
               <div>
                 <span className="text-slate-500 block">Kategori</span>
-                <span className="font-semibold text-slate-900">
-                  {selectedItem.category?.name}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Jenis Barang</span>
-                <span className="font-semibold text-slate-900">
-                  {selectedItem.kind}
-                </span>
+                <span className="font-bold text-slate-900">{selectedItem.category?.name}</span>
               </div>
               <div>
                 <span className="text-slate-500 block">Satuan Dasar</span>
-                <span className="font-semibold text-slate-900">
-                  {selectedItem.unit?.name}
-                </span>
+                <span className="font-bold text-slate-900">{selectedItem.unit?.name}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Batas Minimum</span>
-                <span className="font-bold text-slate-900 num-mono">
-                  {selectedItem.min_stock} {selectedItem.unit?.name}
-                </span>
+                <span className="text-slate-500 block">Batas Minimum Stok</span>
+                <span className="font-bold text-slate-900 num-mono">{selectedItem.min_stock} {selectedItem.unit?.name}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Target Persediaan</span>
-                <span className="font-bold text-slate-900 num-mono">
-                  {selectedItem.target_stock} {selectedItem.unit?.name}
-                </span>
+                <span className="text-slate-500 block">Status Operasional</span>
+                <span className="font-bold text-slate-900">{selectedItem.is_active !== false ? "Aktif" : "Nonaktif"}</span>
               </div>
             </div>
 
-            <div className="text-xs text-slate-500 leading-relaxed">
-              * Saldo fisik diperbarui otomatis melalui sesi opname fisik dan pencatatan transaksi masuk/keluar.
-            </div>
+            {/* Tombol Aksi Admin: Ubah Barang & Nonaktifkan/Aktifkan */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenEditModal}
+                  className="flex-1 min-h-[48px] py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs touch-target transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  <span>Ubah Data Barang</span>
+                </button>
 
-            <div className="pt-2">
+                {selectedItem.is_active !== false ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleItemStatus(selectedItem, false)}
+                    className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-bold text-xs touch-target transition-colors flex items-center gap-1.5"
+                    title="Nonaktifkan barang dari daftar pencatatan"
+                  >
+                    <Archive className="w-4 h-4 text-rose-700" />
+                    <span>Nonaktifkan</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleItemStatus(selectedItem, true)}
+                    className="min-h-[48px] px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs touch-target transition-colors flex items-center gap-1.5"
+                    title="Aktifkan kembali barang ini"
+                  >
+                    <RotateCcw className="w-4 h-4 text-emerald-700" />
+                    <span>Aktifkan</span>
+                  </button>
+                )}
+              </div>
+
               <button
+                type="button"
                 onClick={() => setSelectedItem(null)}
-                className="w-full py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-xs touch-target hover:bg-slate-800"
+                className="w-full py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs touch-target transition-colors"
               >
-                Tutup Rincian
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL UBAH BARANG (EDIT) */}
+      {isEditModalOpen && selectedItem && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Ubah Master Barang</h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Perbarui informasi barang {selectedItem.code}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg touch-target"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-900">
+                {editError}
+              </div>
+            )}
+
+            {/* Peringatan Nama Mirip Real-Time */}
+            {similarItemsToEdit.length > 0 && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Perhatian: Ditemukan nama serupa</span>
+                </div>
+                <p className="text-amber-800 text-[11px]">
+                  Barang yang mirip:{" "}
+                  <strong>{similarItemsToEdit.map((s) => `${s.name} (${s.code})`).join(", ")}</strong>
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3.5">
+              {/* Nama Barang */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">
+                  Nama Barang <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                />
+              </div>
+
+              {/* Kategori */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">
+                  Kategori <span className="text-rose-600">*</span>
+                </label>
+                <select
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                >
+                  {allCategoryOptions.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kode & Satuan (DIKUNCI jika ada transaksi) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">Kode Barang</label>
+                    {itemTxInfo.hasTransactions ? (
+                      <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                        <Lock className="w-3 h-3" /> Dikunci
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-700 flex items-center gap-0.5">
+                        <Unlock className="w-3 h-3" /> Bebas ubah
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    disabled={itemTxInfo.hasTransactions || !confirmUnlockCodeUnit}
+                    value={editCode}
+                    onChange={(e) => setEditCode(e.target.value.toUpperCase())}
+                    className={cn(
+                      "w-full min-h-[48px] p-3 rounded-xl border text-xs sm:text-sm num-mono font-bold touch-target",
+                      itemTxInfo.hasTransactions || !confirmUnlockCodeUnit
+                        ? "bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
+                        : "bg-white text-slate-900 border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">Satuan Dasar</label>
+                    {itemTxInfo.hasTransactions ? (
+                      <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                        <Lock className="w-3 h-3" /> Dikunci
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-700 flex items-center gap-0.5">
+                        <Unlock className="w-3 h-3" /> Bebas ubah
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    disabled={itemTxInfo.hasTransactions || !confirmUnlockCodeUnit}
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value)}
+                    className={cn(
+                      "w-full min-h-[48px] p-3 rounded-xl border text-xs sm:text-sm font-medium touch-target",
+                      itemTxInfo.hasTransactions || !confirmUnlockCodeUnit
+                        ? "bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
+                        : "bg-white text-slate-900 border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                    )}
+                  >
+                    {unitOptions.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                    <option value="CUSTOM">+ Lainnya...</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Catatan Penguncian Satuan/Kode jika ada transaksi */}
+              {itemTxInfo.hasTransactions ? (
+                <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                  🔒 Kode dan satuan dasar dikunci permanen di database karena barang ini sudah memiliki riwayat mutasi stok.
+                </p>
+              ) : (
+                !confirmUnlockCodeUnit && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmUnlockCodeUnit(true)}
+                    className="text-xs font-bold text-amber-800 hover:text-amber-900 hover:underline block"
+                  >
+                    Ingin mengubah kode atau satuan? (Klik untuk konfirmasi)
+                  </button>
+                )
+              )}
+
+              {editUnit === "CUSTOM" && !itemTxInfo.hasTransactions && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Nama Satuan Baru</label>
+                  <input
+                    type="text"
+                    value={editCustomUnit}
+                    onChange={(e) => setEditCustomUnit(e.target.value)}
+                    placeholder="Misal: Paket, Pasang, Botol"
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                  />
+                </div>
+              )}
+
+              {/* Batas Minimum Stok */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-800">Batas Minimum Stok</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editMinStock}
+                  onChange={(e) => setEditMinStock(e.target.value)}
+                  className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
+                />
+              </div>
+
+              {/* Lokasi Rak Penyimpanan */}
+              {locations.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Lokasi Rak Penyimpanan</label>
+                  <select
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                  >
+                    <option value="">Pilih lokasi rak...</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Satu Tombol Simpan */}
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="flex-1 min-h-[48px] py-3 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold text-xs touch-target hover:bg-slate-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSavingEdit || !editName.trim()}
+                onClick={handleSaveEditItem}
+                className={cn(
+                  "flex-1 min-h-[48px] py-3 rounded-xl font-bold text-xs text-white shadow-xs touch-target transition-all flex items-center justify-center",
+                  isSavingEdit || !editName.trim()
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700"
+                )}
+              >
+                {isSavingEdit ? "Menyimpan..." : "Simpan Perubahan"}
               </button>
             </div>
           </div>
@@ -376,11 +839,9 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
           <div className="bg-white w-full max-w-md rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Tambah Barang Baru
-                </h3>
+                <h3 className="text-base font-bold text-slate-900">Tambah Barang Baru</h3>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Daftarkan barang, alat kerja, atau inventaris baru
+                  Daftarkan barang atau alat baru dengan kode otomatis
                 </p>
               </div>
               <button
@@ -389,7 +850,7 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                   setIsAddModalOpen(false);
                   setAddError("");
                 }}
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-lg touch-target"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg touch-target"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -398,6 +859,20 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
             {addError && (
               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-900">
                 {addError}
+              </div>
+            )}
+
+            {/* Peringatan Nama Mirip Real-Time */}
+            {similarItemsToAdd.length > 0 && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Perhatian: Ditemukan nama serupa</span>
+                </div>
+                <p className="text-amber-800 text-[11px]">
+                  Barang yang mirip di sistem:{" "}
+                  <strong>{similarItemsToAdd.map((s) => `${s.name} (${s.code})`).join(", ")}</strong>
+                </p>
               </div>
             )}
 
@@ -411,43 +886,38 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                   type="text"
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
-                  placeholder="Misal: Tripod Kamera, Charger Sony, dll."
-                  className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                  placeholder="Misal: Tripod Kamera, Handy Talkie, Baterai, dll."
+                  className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
                 />
               </div>
 
-              {/* Kategori */}
+              {/* Kategori & Pratinjau Kode Otomatis */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-800">
                   Kategori <span className="text-rose-600">*</span>
                 </label>
                 <select
                   value={newItemCategory}
-                  onChange={(e) => {
-                    const catCode = e.target.value;
-                    setNewItemCategory(catCode);
-                    if (catCode === "IT" || catCode === "ALT") {
-                      setNewItemKind("INSTRUMENT");
-                    } else if (catCode === "APD") {
-                      setNewItemKind("PPE");
-                    } else {
-                      setNewItemKind("CONSUMABLE");
-                    }
-                  }}
-                  className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                  onChange={(e) => setNewItemCategory(e.target.value)}
+                  className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
                 >
-                  <option value="IT">Peralatan IT & Multimedia (IT)</option>
-                  {allCategoryOptions
-                    .filter((c) => c.code !== "IT")
-                    .map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.name} ({c.code})
-                      </option>
-                    ))}
+                  {allCategoryOptions.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {/* Satuan & Jenis */}
+              {/* Kotak Info Kode Otomatis (Tidak Bisa Diketik Manual) */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-medium">Kode Otomatis:</span>
+                <span className="font-mono font-bold text-emerald-800 text-sm">
+                  {previewNewCode}
+                </span>
+              </div>
+
+              {/* Satuan Dasar & Batas Minimum */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-800">
@@ -456,7 +926,7 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                   <select
                     value={newItemUnit}
                     onChange={(e) => setNewItemUnit(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
                   >
                     {unitOptions.map((u) => (
                       <option key={u} value={u}>
@@ -468,85 +938,52 @@ export function BarangClient({ initialItems, categories, units = [] }: BarangCli
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800">
-                    Jenis Barang
-                  </label>
-                  <select
-                    value={newItemKind}
-                    onChange={(e) => setNewItemKind(e.target.value as any)}
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
-                  >
-                    <option value="INSTRUMENT">Alat / Aset</option>
-                    <option value="CONSUMABLE">Habis Pakai</option>
-                    <option value="PPE">APD</option>
-                  </select>
-                </div>
-              </div>
-
-              {newItemUnit === "CUSTOM" && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800">
-                    Ketik Nama Satuan Baru
-                  </label>
-                  <input
-                    type="text"
-                    value={customUnit}
-                    onChange={(e) => setCustomUnit(e.target.value)}
-                    placeholder="Misal: Paket, Pasang, Botol"
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
-                  />
-                </div>
-              )}
-
-              {/* Batas Minimum & Target Stok */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800">
-                    Batas Minimum Stok
-                  </label>
+                  <label className="text-xs font-bold text-slate-800">Batas Minimum Stok</label>
                   <input
                     type="number"
                     min="0"
                     value={newItemMinStock}
                     onChange={(e) => setNewItemMinStock(e.target.value)}
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-800">
-                    Kode Khusus (Opsional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customCode}
-                    onChange={(e) => setCustomCode(e.target.value)}
-                    placeholder="Otomatis (contoh: IT-001)"
-                    className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
                   />
                 </div>
               </div>
+
+              {newItemUnit === "CUSTOM" && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Nama Satuan Baru</label>
+                  <input
+                    type="text"
+                    value={customUnit}
+                    onChange={(e) => setCustomUnit(e.target.value)}
+                    placeholder="Misal: Paket, Pasang, Botol"
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                  />
+                </div>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 pt-3">
+            {/* Satu Tombol Simpan */}
+            <div className="flex items-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
                   setIsAddModalOpen(false);
                   setAddError("");
                 }}
-                className="flex-1 py-3 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold text-xs touch-target hover:bg-slate-50"
+                className="flex-1 min-h-[48px] py-3 rounded-xl bg-white border border-slate-300 text-slate-700 font-bold text-xs touch-target hover:bg-slate-50 transition-colors"
               >
                 Batal
               </button>
               <button
                 type="button"
                 disabled={isAdding || !newItemName.trim()}
-                onClick={handleSaveItem}
+                onClick={handleSaveNewItem}
                 className={cn(
-                  "flex-1 py-3 rounded-xl font-bold text-xs text-white shadow-xs touch-target transition-all",
+                  "flex-1 min-h-[48px] py-3 rounded-xl font-bold text-xs text-white shadow-xs touch-target transition-all flex items-center justify-center",
                   isAdding || !newItemName.trim()
                     ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                    : "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800"
                 )}
               >
                 {isAdding ? "Menyimpan..." : "Simpan Barang Baru"}

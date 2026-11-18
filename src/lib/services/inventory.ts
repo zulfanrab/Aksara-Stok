@@ -175,6 +175,7 @@ export async function getProfiles(): Promise<Profile[]> {
 export async function getItems(options?: {
   categoryCode?: string;
   search?: string;
+  includeInactive?: boolean;
 }): Promise<Item[]> {
   const supabase = createAdminClient();
   let query = supabase
@@ -199,8 +200,11 @@ export async function getItems(options?: {
       unit:units(id, name),
       location:locations(id, name)
     `)
-    .eq("is_active", true)
     .order("code");
+
+  if (!options?.includeInactive) {
+    query = query.eq("is_active", true);
+  }
 
   const { data, error } = await query;
   if (error) {

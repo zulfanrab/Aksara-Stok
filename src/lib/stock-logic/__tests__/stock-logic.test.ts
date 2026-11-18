@@ -5,8 +5,11 @@ import {
   convertUnit,
   calculateStockTakeDiscrepancy,
   validateApproverIsNotCounter,
+  generateNextItemCode,
+  findSimilarItems,
   type StockMovementRecord,
 } from "../index";
+import { APP_VERSION, RELEASES } from "@/lib/changelog";
 
 describe("Logika Ledger Stok (Append-Only)", () => {
   it("menghitung saldo awal dari transaksi IN, OUT, ADJUST, dan REVERSAL secara akurat", () => {
@@ -786,6 +789,67 @@ describe("Langkah 9: Peluncuran Paralel & Rekonsiliasi Excel vs PWA", () => {
     expect(fileName).toBe("[ARSIP BACA-SAJA] Inventaris PT Aksara Riksa Perdana s.d. November 2026.xlsx");
     expect(fileName).toContain("[ARSIP BACA-SAJA]");
     expect(fileName).toContain(".xlsx");
+  });
+});
+
+describe("Fitur Tambah, Ubah, dan Nonaktifkan Barang (Aturan Baru)", () => {
+  it("menghasilkan kode otomatis PREFIX-NNN dari nomor terbesar yang pernah ada", () => {
+    const existing = ["ATK-001", "ATK-002", "ATK-010"];
+    const next = generateNextItemCode("ATK", existing);
+    expect(next).toBe("ATK-011");
+  });
+
+  it("membiarkan nomor yang bolong dan tetap mengambil nomor terbesar + 1", () => {
+    // Nomor 003 bolong sengaja dibiarkan
+    const existingWithGaps = ["ATK-001", "ATK-002", "ATK-004", "ATK-005"];
+    const next = generateNextItemCode("ATK", existingWithGaps);
+    expect(next).toBe("ATK-006");
+  });
+
+  it("memperhitungkan kode barang nonaktif saat mencari nomor terbesar agar kode tidak kembar", () => {
+    // ATK-007 adalah barang nonaktif yang kodenya tetap tercatat
+    const existingWithInactive = ["ATK-001", "ATK-002", "ATK-007"];
+    const next = generateNextItemCode("ATK", existingWithInactive);
+    expect(next).toBe("ATK-008");
+  });
+
+  it("menghasilkan PREFIX-001 jika kategori belum memiliki barang terdaftar", () => {
+    const next = generateNextItemCode("IT", []);
+    expect(next).toBe("IT-001");
+  });
+
+  it("mendeteksi potensi nama barang mirip secara akurat untuk memunculkan peringatan", () => {
+    const existingItems = [
+      { id: "1", name: "Kertas Hvs F4 Paper One 80 gsm", code: "ATK-005" },
+      { id: "2", name: "Ballpoint Hitam Standard", code: "ATK-011" },
+      { id: "3", name: "Helm Safety Putih SNI", code: "APD-001" },
+    ];
+
+    // Kasus 1: Substring / nama mirip
+    const match1 = findSimilarItems("Kertas HVS F4 Paper One", existingItems);
+    expect(match1.length).toBeGreaterThan(0);
+    expect(match1[0].code).toBe("ATK-005");
+
+    // Kasus 2: Kata overlap
+    const match2 = findSimilarItems("Ballpoint Hitam", existingItems);
+    expect(match2.length).toBeGreaterThan(0);
+    expect(match2[0].code).toBe("ATK-011");
+
+    // Kasus 3: Barang beda total
+    const match3 = findSimilarItems("Tripod Kamera Sony", existingItems);
+    expect(match3.length).toBe(0);
+
+    // Kasus 4: Mengabaikan ID sendiri saat edit
+    const match4 = findSimilarItems("Ballpoint Hitam Standard", existingItems, "2");
+    expect(match4.length).toBe(0);
+  });
+
+  it("memverifikasi integritas changelog pembaruan aplikasi v1.1.0", () => {
+    expect(APP_VERSION).toBe("1.1.0");
+    const currentRelease = RELEASES.find((r) => r.version === APP_VERSION);
+    expect(currentRelease).toBeDefined();
+    expect(currentRelease?.points.length).toBeLessThanOrEqual(5);
+    expect(currentRelease?.points.length).toBeGreaterThan(0);
   });
 });
 

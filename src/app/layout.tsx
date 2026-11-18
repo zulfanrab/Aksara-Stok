@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { PwaRegister } from "@/components/pwa/PwaRegister";
+import { UpdateNotificationModal } from "@/components/pwa/UpdateNotificationModal";
 import "./globals.css";
 
 const inter = Inter({
@@ -64,6 +65,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[var(--bg-canvas)] text-[var(--slate-700)]">
         <PwaRegister />
+        <UpdateNotificationModal />
         {children}
       </body>
     </html>

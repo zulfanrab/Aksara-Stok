@@ -14,13 +14,16 @@ import {
   FileText,
   Users,
   History,
+  Sparkles,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UpdateNotificationModal } from "@/components/pwa/UpdateNotificationModal";
 
 export function BottomNav() {
   const pathname = usePathname();
   const [sheet, setSheet] = useState<"catat" | "lainnya" | null>(null);
+  const [showChangelog, setShowChangelog] = useState(false);
 
   const isBarang = pathname.startsWith("/barang");
   const isOpname = pathname.startsWith("/opname");
@@ -243,9 +246,35 @@ export function BottomNav() {
                   <span className="text-xs text-slate-500">Log lengkap keluar, masuk, dan koreksi</span>
                 </div>
               </Link>
+
+              {/* Tautan Riwayat Pembaruan Aplikasi */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSheet(null);
+                  setShowChangelog(true);
+                }}
+                className="w-full flex items-center gap-3.5 p-3 rounded-xl hover:bg-emerald-50/50 border border-slate-100 transition-colors touch-target text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200/50">
+                  <Sparkles className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div className="text-left">
+                  <span className="text-sm font-bold text-slate-900 block">Riwayat Pembaruan</span>
+                  <span className="text-xs text-slate-500">Catatan pembaruan aplikasi & fitur</span>
+                </div>
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Changelog Manual jika dipanggil */}
+      {showChangelog && (
+        <UpdateNotificationModal
+          forceOpen={true}
+          onClose={() => setShowChangelog(false)}
+        />
       )}
     </>
   );
