@@ -26,22 +26,22 @@ CREATE POLICY "audit_log insert" ON audit_log FOR INSERT TO authenticated
   WITH CHECK (true);
 
 
--- 2. Trigger Penegakan: Kunci Kode & Satuan Dasar Jika Sudah Ada Transaksi
--- Mencegah manipulasi kode/satuan lewat API atau klien langsung
+-- 2. Trigger Penegakan: Kunci Satuan Dasar Jika Sudah Ada Transaksi
+-- (Catatan: Kode barang BOLEH diedit/dikoreksi oleh Admin karena referensi mutasi stok memakai item_id UUID)
 CREATE OR REPLACE FUNCTION trg_lock_item_code_and_unit()
 RETURNS TRIGGER AS $$
 DECLARE
   v_has_tx BOOLEAN;
 BEGIN
-  -- Cek apakah kode atau satuan dasar berubah
-  IF (OLD.code <> NEW.code) OR (OLD.base_unit_id <> NEW.base_unit_id) THEN
+  -- Cek apakah satuan dasar berubah pada barang yang sudah memiliki transaksi
+  IF (OLD.base_unit_id <> NEW.base_unit_id) THEN
     -- Periksa apakah barang sudah memiliki transaksi di ledger stock_movements
     SELECT EXISTS(
       SELECT 1 FROM stock_movements WHERE item_id = OLD.id LIMIT 1
     ) INTO v_has_tx;
 
     IF v_has_tx THEN
-      RAISE EXCEPTION 'Pelanggaran Integritas Database: Barang % telah memiliki riwayat mutasi stok. Kode dan satuan dasar tidak boleh diubah.', OLD.code;
+      RAISE EXCEPTION 'Pelanggaran Integritas Database: Barang % telah memiliki riwayat mutasi stok. Satuan dasar tidak boleh diubah agar data historis tidak rusak.', OLD.code;
     END IF;
   END IF;
 

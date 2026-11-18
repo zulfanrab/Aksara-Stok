@@ -417,14 +417,9 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
 
   const hasTransactions = (txCount || 0) > 0;
 
-  // 3. Validasi penguncian kode dan satuan dasar jika sudah ada transaksi
+  // 3. Validasi penguncian satuan dasar jika sudah ada riwayat transaksi
+  // Catatan: Kode barang BOLEH diubah oleh Admin (referensi mutasi stok memakai item_id UUID).
   if (hasTransactions) {
-    if (input.code && input.code.trim().toUpperCase() !== oldItem.code) {
-      return {
-        success: false,
-        error: `Barang ${oldItem.code} sudah memiliki riwayat mutasi stok. Kode barang dikunci dan tidak boleh diubah.`,
-      };
-    }
     if (
       input.baseUnitName &&
       oldItem.unit &&
@@ -432,7 +427,7 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
     ) {
       return {
         success: false,
-        error: `Barang ${oldItem.code} sudah memiliki riwayat mutasi stok. Satuan dasar barang dikunci dan tidak boleh diubah.`,
+        error: `Barang ${oldItem.code} sudah memiliki riwayat mutasi stok. Satuan dasar dikunci dan tidak boleh diubah agar data historis tidak rusak.`,
       };
     }
   }
@@ -469,11 +464,11 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
     }
   }
 
-  // 6. Kode baru (hanya jika belum ada transaksi dan diberikan kode baru yang valid)
+  // 6. Kode baru (bisa diubah oleh Admin kapan saja, divalidasi keunikan kodenya)
   let finalCode = oldItem.code;
-  if (!hasTransactions && input.code && input.code.trim().toUpperCase() !== oldItem.code) {
+  if (input.code && input.code.trim().toUpperCase() !== oldItem.code) {
     const newCodeCandidate = input.code.trim().toUpperCase();
-    // Cek duplikasi
+    // Cek duplikasi dengan barang lain (baik aktif maupun nonaktif)
     const { data: existingCode } = await supabase
       .from("items")
       .select("id")

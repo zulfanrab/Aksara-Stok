@@ -269,7 +269,7 @@ export function BarangClient({
         categoryCode: editCategory,
         minStock: Number(editMinStock) || 0,
         defaultLocationId: editLocation || null,
-        code: !itemTxInfo.hasTransactions ? editCode.trim().toUpperCase() : undefined,
+        code: editCode.trim().toUpperCase(),
         baseUnitName: !itemTxInfo.hasTransactions ? effectiveUnit : undefined,
       });
 
@@ -681,32 +681,21 @@ export function BarangClient({
                 </select>
               </div>
 
-              {/* Kode & Satuan (DIKUNCI jika ada transaksi) */}
+              {/* Kode Barang & Satuan Dasar */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-800">Kode Barang</label>
-                    {itemTxInfo.hasTransactions ? (
-                      <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                        <Lock className="w-3 h-3" /> Dikunci
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-amber-700 flex items-center gap-0.5">
-                        <Unlock className="w-3 h-3" /> Bebas ubah
-                      </span>
-                    )}
+                    <label className="text-xs font-bold text-slate-800">
+                      Kode Barang <span className="text-rose-600">*</span>
+                    </label>
+                    <span className="text-[10px] text-emerald-700 font-bold">Bisa diedit</span>
                   </div>
                   <input
                     type="text"
-                    disabled={itemTxInfo.hasTransactions || !confirmUnlockCodeUnit}
                     value={editCode}
                     onChange={(e) => setEditCode(e.target.value.toUpperCase())}
-                    className={cn(
-                      "w-full min-h-[48px] p-3 rounded-xl border text-xs sm:text-sm num-mono font-bold touch-target",
-                      itemTxInfo.hasTransactions || !confirmUnlockCodeUnit
-                        ? "bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
-                        : "bg-white text-slate-900 border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                    )}
+                    placeholder="Contoh: ATK-001"
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm num-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
                   />
                 </div>
 
@@ -718,47 +707,38 @@ export function BarangClient({
                         <Lock className="w-3 h-3" /> Dikunci
                       </span>
                     ) : (
-                      <span className="text-[10px] text-amber-700 flex items-center gap-0.5">
-                        <Unlock className="w-3 h-3" /> Bebas ubah
-                      </span>
+                      <span className="text-[10px] text-emerald-700 font-bold">Bisa diedit</span>
                     )}
                   </div>
-                  <select
-                    disabled={itemTxInfo.hasTransactions || !confirmUnlockCodeUnit}
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value)}
-                    className={cn(
-                      "w-full min-h-[48px] p-3 rounded-xl border text-xs sm:text-sm font-medium touch-target",
-                      itemTxInfo.hasTransactions || !confirmUnlockCodeUnit
-                        ? "bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed"
-                        : "bg-white text-slate-900 border-slate-300 focus:ring-2 focus:ring-emerald-600 focus:outline-none"
-                    )}
-                  >
-                    {unitOptions.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                    <option value="CUSTOM">+ Lainnya...</option>
-                  </select>
+                  {itemTxInfo.hasTransactions ? (
+                    <input
+                      type="text"
+                      disabled
+                      value={selectedItem.unit?.name || "-"}
+                      className="w-full min-h-[48px] p-3 rounded-xl border border-slate-200 bg-slate-100 text-xs sm:text-sm font-medium text-slate-500 cursor-not-allowed touch-target"
+                    />
+                  ) : (
+                    <select
+                      value={editUnit}
+                      onChange={(e) => setEditUnit(e.target.value)}
+                      className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-medium touch-target focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                    >
+                      {unitOptions.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                      <option value="CUSTOM">+ Lainnya...</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
-              {/* Catatan Penguncian Satuan/Kode jika ada transaksi */}
-              {itemTxInfo.hasTransactions ? (
+              {/* Info Penguncian Satuan jika ada transaksi */}
+              {itemTxInfo.hasTransactions && (
                 <p className="text-[11px] text-slate-500 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
-                  🔒 Kode dan satuan dasar dikunci permanen di database karena barang ini sudah memiliki riwayat mutasi stok.
+                  🔒 Satuan dasar dikunci permanen karena barang sudah memiliki riwayat mutasi. Nomor kode tetap dapat Anda edit/koreksi kapan saja.
                 </p>
-              ) : (
-                !confirmUnlockCodeUnit && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmUnlockCodeUnit(true)}
-                    className="text-xs font-bold text-amber-800 hover:text-amber-900 hover:underline block"
-                  >
-                    Ingin mengubah kode atau satuan? (Klik untuk konfirmasi)
-                  </button>
-                )
               )}
 
               {editUnit === "CUSTOM" && !itemTxInfo.hasTransactions && (
@@ -804,6 +784,14 @@ export function BarangClient({
                   </select>
                 </div>
               )}
+
+              {/* Info Kuantitas Stok */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs flex items-start gap-2">
+                <span className="text-sm">ℹ️</span>
+                <p className="text-[11px] leading-relaxed text-slate-600">
+                  <strong>Kuantitas Stok:</strong> Kuantitas barang tidak diedit di sini. Perubahan jumlah fisik wajib melalui transaksi mutasi (Masuk, Keluar, atau Penyesuaian/Opname) dengan mencantumkan alasan.
+                </p>
+              </div>
             </div>
 
             {/* Satu Tombol Simpan */}
