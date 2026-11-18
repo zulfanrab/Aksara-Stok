@@ -88,6 +88,31 @@ export async function uploadProofPhotoAction(formData: FormData) {
 }
 
 /**
+ * Server Action untuk menyimpan path foto referensi ke kolom photo_path di tabel items.
+ * Dipanggil setelah upload berhasil (uploadProofPhotoAction) agar foto terhubung ke master barang.
+ */
+export async function updateItemPhotoAction(itemId: string, photoPath: string) {
+  if (!itemId || !photoPath) {
+    return { success: false, error: "ID barang dan path foto wajib ada." };
+  }
+
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("items")
+    .update({ photo_path: photoPath, updated_at: new Date().toISOString() })
+    .eq("id", itemId);
+
+  if (error) {
+    console.error("Gagal menyimpan path foto ke master barang:", error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/barang");
+  return { success: true };
+}
+
+/**
  * Server Action untuk menautkan path foto bukti ke baris opname fisik.
  */
 export async function updateStockTakeLinePhotoAction(lineId: string, photoPath: string, stockTakeId?: string) {

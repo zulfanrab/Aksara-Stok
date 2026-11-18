@@ -9,7 +9,7 @@ interface PhotoCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  folder?: "opname" | "receipts" | "assets";
+  folder?: "opname" | "receipts" | "assets" | "items";
   entityId: string;
   onUploadSuccess: (photoPath: string, publicUrl?: string) => void;
 }

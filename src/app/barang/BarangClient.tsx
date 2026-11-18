@@ -18,6 +18,7 @@ import {
   MapPin,
   Clock,
   Sparkles,
+  Camera,
 } from "lucide-react";
 import type { Item, Category, Unit, Location } from "@/types/inventory";
 import {
@@ -26,7 +27,10 @@ import {
   toggleItemActiveAction,
   checkItemTransactionsAction,
 } from "@/lib/actions/stock";
+import { updateItemPhotoAction } from "@/lib/actions/upload";
 import { generateNextItemCode, findSimilarItems } from "@/lib/stock-logic";
+import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
+import { PhotoThumbnail } from "@/components/camera/PhotoThumbnail";
 import { cn } from "@/lib/utils";
 
 interface BarangClientProps {
@@ -80,6 +84,9 @@ export function BarangClient({
 
   // State Konfirmasi Ubah Kode/Satuan (jika belum ada transaksi)
   const [confirmUnlockCodeUnit, setConfirmUnlockCodeUnit] = useState(false);
+
+  // State Modal Foto Barang (master item)
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   // Sinkronisasi data saat router.refresh()
   useEffect(() => {
@@ -309,6 +316,26 @@ export function BarangClient({
     }
   };
 
+  // Callback setelah foto berhasil diupload: simpan path ke tabel items
+  const handleItemPhotoUploaded = async (photoPath: string) => {
+    if (!selectedItem) return;
+    setIsPhotoModalOpen(false);
+    const res = await updateItemPhotoAction(selectedItem.id, photoPath);
+    if (res.success) {
+      // Update state lokal agar foto langsung muncul tanpa full refresh
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co";
+      const updatedItem: Item = {
+        ...selectedItem,
+        photo_path: photoPath,
+      };
+      setSelectedItem(updatedItem);
+      setItemsList((prev) =>
+        prev.map((it) => (it.id === selectedItem.id ? updatedItem : it))
+      );
+      router.refresh();
+    }
+  };
+
   const getKindBadge = (kind: string) => {
     switch (kind) {
       case "CONSUMABLE":
@@ -435,6 +462,7 @@ export function BarangClient({
                   <th className="py-3 px-4 hidden sm:table-cell">Jenis</th>
                   <th className="py-3 px-4 text-center">Satuan</th>
                   <th className="py-3 px-4 text-center">Min Stok</th>
+                  <th className="py-3 px-4 text-center hidden sm:table-cell">Foto</th>
                   <th className="py-3 px-4 text-center">Status</th>
                 </tr>
               </thead>
@@ -481,6 +509,18 @@ export function BarangClient({
                     </td>
                     <td className="py-3 px-4 text-center num-mono font-bold text-slate-700">
                       {item.min_stock}
+                    </td>
+                    <td className="py-3 px-4 text-center hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                      {item.photo_path ? (
+                        <PhotoThumbnail
+                          photoPath={item.photo_path}
+                          altText={item.name}
+                        />
+                      ) : (
+                        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 text-slate-400" title="Belum ada foto">
+                          <Camera className="w-4 h-4" />
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-center">
                       {item.is_active !== false ? (
@@ -540,6 +580,44 @@ export function BarangClient({
                   <Unlock className="w-3.5 h-3.5 text-amber-600" />
                   <span>Belum ada transaksi</span>
                 </span>
+              )}
+            </div>
+
+            {/* Foto Referensi Barang */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              {selectedItem.photo_path ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`${process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co"}/storage/v1/object/public/proof-photos/${selectedItem.photo_path}`}
+                    alt={selectedItem.name}
+                    className="w-full aspect-video object-cover cursor-pointer"
+                    onClick={() => {
+                      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co"}/storage/v1/object/public/proof-photos/${selectedItem.photo_path}`;
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    }}
+                  />
+                  <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/60 to-transparent flex items-center justify-between">
+                    <span className="text-[11px] text-white font-semibold">📷 Foto Barang</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPhotoModalOpen(true)}
+                      className="text-[11px] text-white/80 hover:text-white underline"
+                    >
+                      Ganti Foto
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoModalOpen(true)}
+                  className="w-full py-6 flex flex-col items-center gap-2 text-slate-400 hover:bg-slate-50 transition-colors"
+                >
+                  <Camera className="w-8 h-8 text-slate-300" />
+                  <span className="text-xs font-semibold text-slate-500">Belum ada foto</span>
+                  <span className="text-[11px] text-slate-400">Ketuk untuk memfoto atau unggah gambar alat</span>
+                </button>
               )}
             </div>
 
@@ -979,6 +1057,18 @@ export function BarangClient({
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL FOTO BARANG (hanya ADMIN) */}
+      {selectedItem && (
+        <PhotoCaptureModal
+          isOpen={isPhotoModalOpen}
+          onClose={() => setIsPhotoModalOpen(false)}
+          title={`Foto: ${selectedItem.name}`}
+          folder="items"
+          entityId={selectedItem.id}
+          onUploadSuccess={handleItemPhotoUploaded}
+        />
       )}
     </div>
   );
