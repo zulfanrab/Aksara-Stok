@@ -1068,6 +1068,7 @@ export function BarangClient({
           folder="items"
           entityId={selectedItem.id}
           onUploadSuccess={handleItemPhotoUploaded}
+          cameraOnly={true}
         />
       )}
     </div>

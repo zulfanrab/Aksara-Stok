@@ -5,6 +5,8 @@
  * "Kompres di perangkat (sisi terpanjang sekitar 1280 px, sekitar 200 KB) sebelum unggah."
  */
 
+import { burnWatermark, type WatermarkOptions } from "./watermark";
+
 export interface ScaledDimensions {
   width: number;
   height: number;
@@ -24,6 +26,7 @@ export interface CompressOptions {
   maxDimension?: number; // Default 1280 px
   quality?: number; // Default 0.8 (JPEG)
   fileName?: string;
+  watermark?: WatermarkOptions; // Opsional: bakar timestamp ke foto
 }
 
 /**
@@ -94,6 +97,11 @@ export async function compressImageFile(
 
         // Render gambar ke canvas dengan resampling bilinear
         ctx.drawImage(img, 0, 0, width, height);
+
+        // Bakar watermark timestamp jika diminta
+        if (options.watermark) {
+          burnWatermark(ctx, width, height, options.watermark);
+        }
 
         // Ekspor ke Blob JPEG
         canvas.toBlob(
