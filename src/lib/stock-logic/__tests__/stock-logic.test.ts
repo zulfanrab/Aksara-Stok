@@ -10,6 +10,7 @@ import {
   type StockMovementRecord,
 } from "../index";
 import { APP_VERSION, RELEASES } from "@/lib/changelog";
+import { APP_PIN, validateAppPin } from "@/lib/auth/pin";
 
 describe("Logika Ledger Stok (Append-Only)", () => {
   it("menghitung saldo awal dari transaksi IN, OUT, ADJUST, dan REVERSAL secara akurat", () => {
@@ -850,6 +851,23 @@ describe("Fitur Tambah, Ubah, dan Nonaktifkan Barang (Aturan Baru)", () => {
     expect(currentRelease).toBeDefined();
     expect(currentRelease?.points.length).toBeLessThanOrEqual(5);
     expect(currentRelease?.points.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Keamanan PIN Pembuka Akses Aplikasi (Shared PIN)", () => {
+  it("hanya menerima PIN 9999 untuk membuka akses", () => {
+    expect(APP_PIN).toBe("9999");
+    expect(validateAppPin("9999")).toBe(true);
+    expect(validateAppPin(" 9999 ")).toBe(true);
+  });
+
+  it("menolak PIN yang salah atau tidak lengkap", () => {
+    expect(validateAppPin("1234")).toBe(false);
+    expect(validateAppPin("0000")).toBe(false);
+    expect(validateAppPin("999")).toBe(false);
+    expect(validateAppPin("99999")).toBe(false);
+    expect(validateAppPin("")).toBe(false);
+    expect(validateAppPin("abcd")).toBe(false);
   });
 });
 

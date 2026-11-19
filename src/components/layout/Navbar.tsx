@@ -4,10 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { HelpCircle, Sparkles } from "lucide-react";
+import { HelpCircle, Sparkles, Lock } from "lucide-react";
 import { OfflineStatusBanner } from "./OfflineStatusBanner";
 import { NavbarStatusPill } from "./NavbarStatusPill";
 import { UpdateNotificationModal } from "@/components/pwa/UpdateNotificationModal";
+import { lockApp } from "@/lib/auth/pin";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -89,6 +90,17 @@ export function Navbar() {
           >
             <HelpCircle className="w-4 h-4 stroke-[2.3]" />
           </Link>
+
+          {/* Tombol Kunci Aplikasi Manual */}
+          <button
+            type="button"
+            onClick={() => lockApp()}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 transition-all shadow-2xs touch-target"
+            title="Kunci Aplikasi (PIN 9999)"
+            aria-label="Kunci Aplikasi"
+          >
+            <Lock className="w-4 h-4 stroke-[2.2]" />
+          </button>
 
           {/* Desktop Navigation Links dengan Tab Aktif Berwarna Hijau K3 Aksara */}
           <nav className="hidden md:flex items-center gap-1 ml-2">
