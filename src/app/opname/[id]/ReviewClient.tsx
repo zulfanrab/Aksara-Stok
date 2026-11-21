@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, AlertTriangle, AlertCircle, Clock, Printer, RotateCcw, ShieldCheck, UserCheck, Lock, ArrowRight, Eye, RefreshCw, X, ShieldAlert, Camera } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertTriangle, AlertCircle, Clock, Printer, RotateCcw, ShieldCheck, UserCheck, Lock, ArrowRight, Eye, RefreshCw, X, ShieldAlert, Camera, Search } from "lucide-react";
 import type { StockTakeWithDetails, StockTakeLineWithItem, Profile } from "@/lib/services/inventory";
 import { calculateStockTakeDiscrepancy } from "@/lib/stock-logic";
 import { approveStockTakeAction, postStockTakeAction, submitRecountLineAction } from "@/lib/actions/opname";
@@ -20,6 +20,7 @@ interface ReviewClientProps {
 export function ReviewClient({ stockTake, lines: initialLines, profiles }: ReviewClientProps) {
   const [lines, setLines] = useState<StockTakeLineWithItem[]>(initialLines);
   const [activeTab, setActiveTab] = useState<"ALL" | "DIFF" | "RECOUNT">("ALL");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [recountingLine, setRecountingLine] = useState<StockTakeLineWithItem | null>(null);
   const [activePhotoLine, setActivePhotoLine] = useState<StockTakeLineWithItem | null>(null);
   const [recountQty, setRecountQty] = useState<number>(0);
@@ -74,8 +75,17 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
   const recountNeededLines = evaluatedLines.filter((l) => l.requiresRecount);
 
   const filteredLines = evaluatedLines.filter((line) => {
-    if (activeTab === "DIFF") return line.discrepancy !== 0;
-    if (activeTab === "RECOUNT") return line.requiresRecount;
+    if (activeTab === "DIFF" && line.discrepancy === 0) return false;
+    if (activeTab === "RECOUNT" && !line.requiresRecount) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchName = line.item?.name?.toLowerCase().includes(q);
+      const matchCode = line.item?.code?.toLowerCase().includes(q);
+      const matchCat = line.item?.category?.name?.toLowerCase().includes(q);
+      return matchName || matchCode || matchCat;
+    }
+
     return true;
   });
 
@@ -290,41 +300,63 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
         )}
       </div>
 
-      {/* Tabs Filter Baris */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setActiveTab("ALL")}
-          className={cn(
-            "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
-            activeTab === "ALL"
-              ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-xs border border-emerald-700"
-              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+      {/* Search Bar & Tabs Filter Baris */}
+      <div className="space-y-2.5">
+        <div className="relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari kode atau nama barang di sesi ini..."
+            className="w-full pl-10 pr-9 py-2.5 rounded-2xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700"
+            >
+              <X className="w-4 h-4" />
+            </button>
           )}
-        >
-          Semua Item ({totalLines})
-        </button>
-        <button
-          onClick={() => setActiveTab("DIFF")}
-          className={cn(
-            "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
-            activeTab === "DIFF"
-              ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-xs border border-amber-700"
-              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-          )}
-        >
-          Ada Selisih Fisik ({discrepancyLines.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("RECOUNT")}
-          className={cn(
-            "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
-            activeTab === "RECOUNT"
-              ? "bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-xs border border-rose-700"
-              : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
-          )}
-        >
-          Perlu Hitung Ulang ({recountNeededLines.length})
-        </button>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setActiveTab("ALL")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
+              activeTab === "ALL"
+                ? "bg-slate-900 text-white shadow-2xs"
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            Semua Item ({totalLines})
+          </button>
+          <button
+            onClick={() => setActiveTab("DIFF")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
+              activeTab === "DIFF"
+                ? "bg-amber-700 text-white shadow-2xs"
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            Ada Selisih Fisik ({discrepancyLines.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("RECOUNT")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-bold touch-target transition-all",
+              activeTab === "RECOUNT"
+                ? "bg-rose-700 text-white shadow-2xs"
+                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            Perlu Hitung Ulang ({recountNeededLines.length})
+          </button>
+        </div>
       </div>
 
       {/* Tabel Baris Opname (Desktop/Tablet) & Kartu (Mobile) */}

@@ -73,6 +73,7 @@ export interface StockTakeLineWithItem {
     code: string;
     name: string;
     kind: string;
+    photo_path?: string | null;
     unit?: { name: string };
     category?: { name: string; code: string };
   };
@@ -401,6 +402,7 @@ export async function getStockTakeById(id: string): Promise<{
         code,
         name,
         kind,
+        photo_path,
         unit:units(name),
         category:categories(name, code)
       ),

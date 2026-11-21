@@ -35,3 +35,13 @@ export function isPhotoRequiredForLine(
   }
   return Math.abs(discrepancyValue) >= 100000;
 }
+
+/**
+ * Menghasilkan URL publik lengkap untuk foto barang di Supabase Storage.
+ */
+export function getItemPhotoPublicUrl(photoPath: string | null | undefined): string | null {
+  if (!photoPath) return null;
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co";
+  return `${baseUrl}/storage/v1/object/public/proof-photos/${photoPath}`;
+}
+

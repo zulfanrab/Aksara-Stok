@@ -53,6 +53,7 @@ export const SEED_CATEGORIES: SeedCategory[] = [
   { code: "BHN", name: "Bahan Pengujian & NDT", kind: "CONSUMABLE" },
   { code: "APD", name: "Alat Pelindung Diri", kind: "PPE" },
   { code: "ALT", name: "Peralatan & Alat Ukur K3", kind: "INSTRUMENT" },
+  { code: "IT", name: "Peralatan IT & Multimedia", kind: "INSTRUMENT" },
   { code: "BYA", name: "Biaya Operasional Rutin", kind: "SERVICE" },
 ];
 

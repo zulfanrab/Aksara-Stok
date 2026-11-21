@@ -19,18 +19,26 @@ import {
   Clock,
   Sparkles,
   Camera,
+  Trash2,
+  FileSpreadsheet,
 } from "lucide-react";
 import type { Item, Category, Unit, Location } from "@/types/inventory";
+import type { StockSummaryItem } from "@/lib/services/reports";
+import { exportStockSummaryToExcel } from "@/lib/reports/export";
 import {
   createItemAction,
   updateItemAction,
   toggleItemActiveAction,
   checkItemTransactionsAction,
+  deleteItemAction,
+  manualResequenceCategoryAction,
 } from "@/lib/actions/stock";
 import { updateItemPhotoAction } from "@/lib/actions/upload";
 import { generateNextItemCode, findSimilarItems } from "@/lib/stock-logic";
 import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
 import { PhotoThumbnail } from "@/components/camera/PhotoThumbnail";
+import { ImageLightboxModal } from "@/components/camera/ImageLightboxModal";
+import { getItemPhotoPublicUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
 interface BarangClientProps {
@@ -81,12 +89,16 @@ export function BarangClient({
   const [editLocation, setEditLocation] = useState("");
   const [editError, setEditError] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isResequencing, setIsResequencing] = useState(false);
 
   // State Konfirmasi Ubah Kode/Satuan (jika belum ada transaksi)
   const [confirmUnlockCodeUnit, setConfirmUnlockCodeUnit] = useState(false);
 
   // State Modal Foto Barang (master item)
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string>("");
 
   // Sinkronisasi data saat router.refresh()
   useEffect(() => {
@@ -252,6 +264,22 @@ export function BarangClient({
     setIsEditModalOpen(true);
   };
 
+  // Ubah Kategori di Modal Edit (Otomatis menyesuaikan Kode Baru di kategori tujuan)
+  const handleEditCategoryChange = (newCatCode: string) => {
+    setEditCategory(newCatCode);
+    const oldCatCode = selectedItem?.category?.code || "";
+    if (newCatCode !== oldCatCode) {
+      // Cari kode barang yang ada di kategori tujuan (selain item yang sedang diedit)
+      const targetExistingCodes = itemsList
+        .filter((i) => i.id !== selectedItem?.id && i.category?.code === newCatCode)
+        .map((i) => i.code);
+      const nextCode = generateNextItemCode(newCatCode, targetExistingCodes);
+      setEditCode(nextCode);
+    } else {
+      setEditCode(selectedItem?.code || "");
+    }
+  };
+
   // Simpan Perubahan Barang (Edit)
   const handleSaveEditItem = async () => {
     if (!selectedItem) return;
@@ -294,7 +322,79 @@ export function BarangClient({
     }
   };
 
-  // Nonaktifkan atau Aktifkan Kembali Barang
+  // Hapus Master Barang Secara Permanen (Hanya jika belum memiliki mutasi)
+  const handleDeleteItem = async (item: Item) => {
+    if (itemTxInfo.hasTransactions) {
+      alert(
+        `Barang "${item.name}" (${item.code}) sudah memiliki ${itemTxInfo.count} catatan mutasi stok. Sesuai standar integritas sistem, barang tidak dapat dihapus permanen agar data historis tetap akurat. Silakan gunakan tombol "Nonaktifkan" untuk menyembunyikannya dari transaksi aktif.`
+      );
+      return;
+    }
+
+    const catName = item.category?.name || item.category?.code || "";
+    const confirmMsg = `Hapus master barang "${item.name}" (${item.code}) secara permanen?\n\nUrutan nomor kode barang lain dalam kategori "${catName}" akan otomatis dirapikan kembali agar tidak ada nomor yang bolong.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await deleteItemAction({ itemId: item.id });
+      if (res.success) {
+        setIsEditModalOpen(false);
+        setSelectedItem(null);
+        router.refresh();
+      } else {
+        alert(res.error || "Gagal menghapus barang.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Terjadi kesalahan saat menghapus barang.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Rapikan Nomor Urut Kode Barang Secara Manual untuk Kategori Terpilih
+  const handleManualResequence = async (catCode: string) => {
+    if (
+      !window.confirm(
+        `Rapikan nomor urut kode barang pada kategori ${catCode} agar berurutan kontinu (001, 002, ...) tanpa ada nomor yang bolong?`
+      )
+    ) {
+      return;
+    }
+    setIsResequencing(true);
+    try {
+      const res = await manualResequenceCategoryAction(catCode);
+      if (res.success) {
+        router.refresh();
+      } else {
+        alert(res.error || `Gagal merapikan nomor urut kategori ${catCode}.`);
+      }
+    } catch (err: any) {
+      alert(err.message || "Terjadi kesalahan.");
+    } finally {
+      setIsResequencing(false);
+    }
+  };
+
+  // Ekspor Data Barang yang Difilter ke Excel (Lengkap dengan Foto)
+  const handleExportFilteredToExcel = () => {
+    const exportData: StockSummaryItem[] = filteredItems.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      categoryName: item.category?.name || "Lainnya",
+      categoryCode: item.category?.code || "-",
+      unitName: item.unit?.name || "Pcs",
+      currentStock: item.current_qty || 0,
+      minStock: item.min_stock || 0,
+      targetStock: item.target_stock || 0,
+      status: item.stock_status === "HABIS" || item.stock_status === "MENIPIS" ? item.stock_status : "AMAN",
+      kind: item.kind,
+      photo_path: item.photo_path || null,
+    }));
+    exportStockSummaryToExcel(exportData, { generatedBy: "Admin Logistik" });
+  };
   const handleToggleItemStatus = async (item: Item, newStatus: boolean) => {
     const actionLabel = newStatus ? "mengaktifkan kembali" : "menonaktifkan";
     const confirmMsg = newStatus
@@ -364,6 +464,27 @@ export function BarangClient({
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {selectedCategory !== "ALL" && selectedCategory !== "INACTIVE" && (
+              <button
+                type="button"
+                disabled={isResequencing}
+                onClick={() => handleManualResequence(selectedCategory)}
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 active:scale-95 text-slate-700 text-xs font-semibold touch-target transition-all"
+                title={`Rapikan nomor urut barang pada kategori ${selectedCategory} agar kontinu (001, 002, ...)`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{isResequencing ? "Merapikan..." : `Rapikan Nomor ${selectedCategory}`}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleExportFilteredToExcel}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 active:scale-95 text-emerald-800 text-xs font-semibold touch-target transition-all"
+              title="Ekspor daftar barang yang difilter ke Excel lengkap dengan foto"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+              <span>Ekspor Excel</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -591,10 +712,13 @@ export function BarangClient({
                   <img
                     src={`${process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co"}/storage/v1/object/public/proof-photos/${selectedItem.photo_path}`}
                     alt={selectedItem.name}
-                    className="w-full aspect-video object-cover cursor-pointer"
+                    className="w-full aspect-video object-cover cursor-pointer hover:opacity-95 transition-opacity"
                     onClick={() => {
-                      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co"}/storage/v1/object/public/proof-photos/${selectedItem.photo_path}`;
-                      window.open(url, "_blank", "noopener,noreferrer");
+                      const url = getItemPhotoPublicUrl(selectedItem.photo_path);
+                      if (url) {
+                        setLightboxUrl(url);
+                        setLightboxTitle(`${selectedItem.name} (${selectedItem.code})`);
+                      }
                     }}
                   />
                   <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/60 to-transparent flex items-center justify-between">
@@ -675,6 +799,18 @@ export function BarangClient({
                 )}
               </div>
 
+              {!itemTxInfo.loading && !itemTxInfo.hasTransactions && (
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => handleDeleteItem(selectedItem)}
+                  className="w-full min-h-[44px] py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 hover:text-rose-800 font-bold text-xs touch-target transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  <span>{isDeleting ? "Menghapus..." : "Hapus Barang Permanen"}</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setSelectedItem(null)}
@@ -748,7 +884,7 @@ export function BarangClient({
                 </label>
                 <select
                   value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
+                  onChange={(e) => handleEditCategoryChange(e.target.value)}
                   className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
                 >
                   {allCategoryOptions.map((c) => (
@@ -758,6 +894,24 @@ export function BarangClient({
                   ))}
                 </select>
               </div>
+
+              {/* Notifikasi Perpindahan Kategori & Penomoran Otomatis */}
+              {editCategory !== selectedItem.category?.code && (
+                <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs space-y-1 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-900">
+                    <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+                    <span>Perpindahan Kategori Terdeteksi</span>
+                  </div>
+                  <p className="text-sky-800 text-[11px] leading-relaxed">
+                    Barang dipindahkan ke kategori{" "}
+                    <strong>
+                      {allCategoryOptions.find((c) => c.code === editCategory)?.name || editCategory}
+                    </strong>
+                    . Kode otomatis dialihkan ke <strong className="font-mono">{editCode}</strong>.
+                    Saat disimpan, urutan nomor di kategori lama ({selectedItem.category?.code}) dan kategori baru akan <strong>otomatis disesuaikan kontinu</strong>.
+                  </p>
+                </div>
+              )}
 
               {/* Kode Barang & Satuan Dasar */}
               <div className="grid grid-cols-2 gap-3">
@@ -894,6 +1048,40 @@ export function BarangClient({
               >
                 {isSavingEdit ? "Menyimpan..." : "Simpan Perubahan"}
               </button>
+            </div>
+
+            {/* Tombol Hapus Barang (Fitur Hapus pada Edit Barang) */}
+            <div className="pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isDeleting || isSavingEdit}
+                onClick={() => handleDeleteItem(selectedItem)}
+                className={cn(
+                  "w-full min-h-[44px] py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 touch-target",
+                  itemTxInfo.hasTransactions
+                    ? "bg-slate-50 text-slate-400 cursor-not-allowed border border-slate-200"
+                    : "bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200"
+                )}
+                title={
+                  itemTxInfo.hasTransactions
+                    ? `Barang ini memiliki ${itemTxInfo.count} catatan mutasi stok. Gunakan tombol Nonaktifkan.`
+                    : "Hapus master barang ini secara permanen"
+                }
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" />
+                <span>
+                  {isDeleting
+                    ? "Menghapus..."
+                    : itemTxInfo.hasTransactions
+                    ? `Hapus Permanen Dikunci (${itemTxInfo.count} Mutasi Stok)`
+                    : "Hapus Barang Ini"}
+                </span>
+              </button>
+              {itemTxInfo.hasTransactions && (
+                <p className="text-[10px] text-slate-400 text-center mt-1">
+                  Barang dengan riwayat mutasi stok dikunci dari penghapusan permanen. Silakan gunakan menu Nonaktifkan.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1069,6 +1257,17 @@ export function BarangClient({
           entityId={selectedItem.id}
           onUploadSuccess={handleItemPhotoUploaded}
           cameraOnly={true}
+        />
+      )}
+
+      {/* Lightbox Pratinjau Foto Penuh In-App */}
+      {lightboxUrl && (
+        <ImageLightboxModal
+          isOpen={true}
+          onClose={() => setLightboxUrl(null)}
+          imageUrl={lightboxUrl}
+          title={lightboxTitle}
+          altText={lightboxTitle}
         />
       )}
     </div>

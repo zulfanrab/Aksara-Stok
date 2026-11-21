@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Printer } from "lucide-react";
 import type { StockSummaryItem, PersonUsageSummary, ProjectUsageSummary, InventoryMetrics } from "@/lib/services/reports";
+import { getItemPhotoPublicUrl } from "@/lib/storage";
 
 interface CetakClientProps {
   data: {
@@ -110,6 +111,7 @@ export function CetakClient({ data, activeTab }: CetakClientProps) {
               <thead>
                 <tr className="bg-[#299775] text-white">
                   <th className="p-2 border border-slate-300 text-center w-8">No</th>
+                  <th className="p-2 border border-slate-300 text-center w-14">Foto</th>
                   <th className="p-2 border border-slate-300">Kode</th>
                   <th className="p-2 border border-slate-300">Nama Barang</th>
                   <th className="p-2 border border-slate-300">Kategori</th>
@@ -121,17 +123,28 @@ export function CetakClient({ data, activeTab }: CetakClientProps) {
               <tbody>
                 {data.stockSummary.map((item, idx) => (
                   <tr key={item.id} className="even:bg-slate-50">
-                    <td className="p-1.5 border border-slate-200 text-center">{idx + 1}</td>
-                    <td className="p-1.5 border border-slate-200 num-mono font-bold text-slate-800">
+                    <td className="p-1.5 border border-slate-200 text-center align-middle">{idx + 1}</td>
+                    <td className="p-1 border border-slate-200 text-center align-middle">
+                      {item.photo_path ? (
+                        <img
+                          src={getItemPhotoPublicUrl(item.photo_path) || ""}
+                          alt={item.name}
+                          className="w-10 h-10 object-cover rounded-md mx-auto border border-slate-200"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-slate-300">-</span>
+                      )}
+                    </td>
+                    <td className="p-1.5 border border-slate-200 num-mono font-bold text-slate-800 align-middle">
                       {item.code}
                     </td>
-                    <td className="p-1.5 border border-slate-200 font-semibold">{item.name}</td>
-                    <td className="p-1.5 border border-slate-200 text-slate-600">{item.categoryName}</td>
-                    <td className="p-1.5 border border-slate-200 text-right num-mono font-bold">
+                    <td className="p-1.5 border border-slate-200 font-semibold align-middle">{item.name}</td>
+                    <td className="p-1.5 border border-slate-200 text-slate-600 align-middle">{item.categoryName}</td>
+                    <td className="p-1.5 border border-slate-200 text-right num-mono font-bold align-middle">
                       {item.currentStock}
                     </td>
-                    <td className="p-1.5 border border-slate-200">{item.unitName}</td>
-                    <td className="p-1.5 border border-slate-200 text-center font-bold">
+                    <td className="p-1.5 border border-slate-200 align-middle">{item.unitName}</td>
+                    <td className="p-1.5 border border-slate-200 text-center font-bold align-middle">
                       <span
                         className={
                           item.status === "AMAN"

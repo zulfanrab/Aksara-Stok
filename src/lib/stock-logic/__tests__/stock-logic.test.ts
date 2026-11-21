@@ -7,6 +7,7 @@ import {
   validateApproverIsNotCounter,
   generateNextItemCode,
   findSimilarItems,
+  calculateResequencedCodes,
   type StockMovementRecord,
 } from "../index";
 import { APP_VERSION, RELEASES } from "@/lib/changelog";
@@ -851,6 +852,58 @@ describe("Fitur Tambah, Ubah, dan Nonaktifkan Barang (Aturan Baru)", () => {
     expect(currentRelease).toBeDefined();
     expect(currentRelease?.points.length).toBeLessThanOrEqual(5);
     expect(currentRelease?.points.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Penyesuaian Urutan Nomor Kode Barang Otomatis (Resequence)", () => {
+  it("merapikan urutan nomor secara kontinu saat item di tengah dihapus atau dipindah", () => {
+    // Skenario: ALT-021 dan ALT-022 dipindah ke IT, sehingga tersisa ALT-020 dan ALT-023..ALT-025
+    const remainingItems = [
+      { id: "1", code: "ALT-001" },
+      { id: "2", code: "ALT-002" },
+      { id: "20", code: "ALT-020" },
+      { id: "23", code: "ALT-023" },
+      { id: "24", code: "ALT-024" },
+      { id: "25", code: "ALT-025" },
+    ];
+
+    const result = calculateResequencedCodes("ALT", remainingItems);
+
+    expect(result).toHaveLength(6);
+    expect(result[0]).toEqual({ id: "1", oldCode: "ALT-001", newCode: "ALT-001", changed: false });
+    expect(result[1]).toEqual({ id: "2", oldCode: "ALT-002", newCode: "ALT-002", changed: false });
+    expect(result[2]).toEqual({ id: "20", oldCode: "ALT-020", newCode: "ALT-003", changed: true });
+    expect(result[3]).toEqual({ id: "23", oldCode: "ALT-023", newCode: "ALT-004", changed: true });
+    expect(result[4]).toEqual({ id: "24", oldCode: "ALT-024", newCode: "ALT-005", changed: true });
+    expect(result[5]).toEqual({ id: "25", oldCode: "ALT-025", newCode: "ALT-006", changed: true });
+  });
+
+  it("menormalisasi kode dengan digit tidak standar seperti ALT-21 menjadi ALT-021", () => {
+    const items = [
+      { id: "20", code: "ALT-020" },
+      { id: "21", code: "ALT-21" }, // format 2 digit
+      { id: "22", code: "ALT-022" },
+    ];
+
+    const result = calculateResequencedCodes("ALT", items);
+
+    expect(result[0]).toEqual({ id: "20", oldCode: "ALT-020", newCode: "ALT-001", changed: true });
+    expect(result[1]).toEqual({ id: "21", oldCode: "ALT-21", newCode: "ALT-002", changed: true });
+    expect(result[2]).toEqual({ id: "22", oldCode: "ALT-022", newCode: "ALT-003", changed: true });
+  });
+
+  it("menetapkan kode awal PREFIX-001 secara berurutan untuk barang yang baru dipindah ke kategori kosong", () => {
+    // Skenario: 2 barang dipindah ke kategori IT
+    const itItems = [
+      { id: "lan", code: "ALT-21", created_at: "2026-11-16T10:00:00Z" },
+      { id: "shredder", code: "ALT-022", created_at: "2026-11-16T10:05:00Z" },
+    ];
+
+    const result = calculateResequencedCodes("IT", itItems);
+
+    expect(result).toHaveLength(2);
+    expect(result[0].newCode).toBe("IT-001");
+    expect(result[1].newCode).toBe("IT-002");
   });
 });
 

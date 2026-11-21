@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import type { StockSummaryItem, PersonUsageSummary, ProjectUsageSummary, InventoryMetrics } from "@/lib/services/reports";
 import { exportStockSummaryToExcel, exportPersonUsageToExcel, exportReportToWord } from "@/lib/reports/export";
+import { getItemPhotoPublicUrl } from "@/lib/storage";
+import { ImageLightboxModal } from "@/components/camera/ImageLightboxModal";
 import { cn } from "@/lib/utils";
 
 interface LaporanClientProps {
@@ -38,6 +40,8 @@ export function LaporanClient({ data }: LaporanClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string>("");
 
   // Daftar kategori unik untuk filter
   const categories = useMemo(() => {
@@ -107,16 +111,24 @@ export function LaporanClient({ data }: LaporanClientProps) {
 
   const handleExportWord = () => {
     if (activeTab === "STOCK") {
-      const headers = ["No", "Kode", "Nama Barang", "Kategori", "Stok", "Satuan", "Status"];
-      const rows = filteredStock.map((i, idx) => [
-        String(idx + 1),
-        i.code,
-        i.name,
-        i.categoryName,
-        String(i.currentStock),
-        i.unitName,
-        i.status,
-      ]);
+      const headers = ["No", "Foto", "Kode", "Nama Barang", "Kategori", "Stok", "Satuan", "Status"];
+      const rows = filteredStock.map((i, idx) => {
+        const photoUrl = getItemPhotoPublicUrl(i.photo_path);
+        const photoHtml = photoUrl
+          ? `<img src="${photoUrl}" width="50" height="50" style="object-fit:cover; display:block; margin-bottom:2px;" /><a href="${photoUrl}">Buka Foto</a>`
+          : "-";
+
+        return [
+          String(idx + 1),
+          photoHtml,
+          i.code,
+          i.name,
+          i.categoryName,
+          String(i.currentStock),
+          i.unitName,
+          i.status,
+        ];
+      });
       exportReportToWord({
         reportTitle: "Laporan Rekapitulasi Stok Inventaris",
         tableHeaders: headers,
@@ -344,6 +356,7 @@ export function LaporanClient({ data }: LaporanClientProps) {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-canvas)] border-b border-[var(--slate-200)] text-xs font-bold text-[var(--slate-700)] uppercase">
                 <tr>
+                  <th className="py-3 px-3 text-center w-12">Foto</th>
                   <th className="py-3 px-4">Barang</th>
                   <th className="py-3 px-3">Kategori</th>
                   <th className="py-3 px-3 text-right">Stok Terkini</th>
@@ -355,13 +368,38 @@ export function LaporanClient({ data }: LaporanClientProps) {
               <tbody className="divide-y divide-[var(--slate-200)] text-xs sm:text-sm">
                 {filteredStock.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
                       Tidak ada barang yang cocok dengan pencarian.
                     </td>
                   </tr>
                 ) : (
                   filteredStock.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-2.5 px-3 text-center align-middle">
+                        {item.photo_path ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = getItemPhotoPublicUrl(item.photo_path);
+                              if (url) {
+                                setLightboxUrl(url);
+                                setLightboxTitle(`${item.name} (${item.code})`);
+                              }
+                            }}
+                            className="relative block w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shadow-2xs hover:opacity-90 active:scale-95 transition-all mx-auto"
+                            title="Klik untuk memperbesar"
+                          >
+                            <img
+                              src={getItemPhotoPublicUrl(item.photo_path) || ""}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ) : (
+                          <span className="text-slate-300 text-xs">-</span>
+                        )}
+                      </td>
+
                       <td className="py-3 px-4">
                         <div className="font-semibold text-[var(--slate-900)]">{item.name}</div>
                         <span className="num-mono font-bold text-xs text-[var(--emerald-700)]">
@@ -513,6 +551,17 @@ export function LaporanClient({ data }: LaporanClientProps) {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Lightbox Pratinjau Foto Laporan */}
+      {lightboxUrl && (
+        <ImageLightboxModal
+          isOpen={true}
+          onClose={() => setLightboxUrl(null)}
+          imageUrl={lightboxUrl}
+          title={lightboxTitle}
+          altText={lightboxTitle}
+        />
       )}
     </div>
   );

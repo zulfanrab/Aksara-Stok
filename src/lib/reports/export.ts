@@ -6,6 +6,7 @@
  */
 
 import type { StockSummaryItem, PersonUsageSummary, ProjectUsageSummary } from "@/lib/services/reports";
+import { getItemPhotoPublicUrl } from "@/lib/storage";
 
 /**
  * Utilitas untuk memicu unduhan file Blob di peramban
@@ -46,17 +47,26 @@ export function exportStockSummaryToExcel(
           ? "#fffbeb; color: #b45309"
           : "#fff1f2; color: #be123c";
 
+      const photoUrl = getItemPhotoPublicUrl(item.photo_path);
+      const photoCell = photoUrl
+        ? `<td style="text-align: center; vertical-align: middle; border: 1px solid #cbd5e1; padding: 4px;">
+             <img src="${photoUrl}" width="55" height="55" alt="${item.name}" style="object-fit: cover; border-radius: 4px; display: block; margin: 0 auto;" />
+             <a href="${photoUrl}" target="_blank" style="font-size: 8pt; color: #299775; text-decoration: underline; display: block; margin-top: 2px;">Buka Foto</a>
+           </td>`
+        : `<td style="text-align: center; color: #94a3b8; font-size: 8pt; border: 1px solid #cbd5e1;">-</td>`;
+
       return `
         <tr>
-          <td style="text-align: center; border: 1px solid #cbd5e1;">${idx + 1}</td>
-          <td style="font-family: monospace; font-weight: bold; border: 1px solid #cbd5e1;">${item.code}</td>
-          <td style="border: 1px solid #cbd5e1;">${item.name}</td>
-          <td style="border: 1px solid #cbd5e1;">${item.categoryName}</td>
-          <td style="text-align: right; font-weight: bold; border: 1px solid #cbd5e1;">${item.currentStock}</td>
-          <td style="border: 1px solid #cbd5e1;">${item.unitName}</td>
-          <td style="text-align: right; border: 1px solid #cbd5e1;">${item.minStock}</td>
-          <td style="text-align: right; border: 1px solid #cbd5e1;">${item.targetStock}</td>
-          <td style="text-align: center; font-weight: bold; background-color: ${statusColor}; border: 1px solid #cbd5e1;">
+          <td style="text-align: center; border: 1px solid #cbd5e1; vertical-align: middle;">${idx + 1}</td>
+          ${photoCell}
+          <td style="font-family: monospace; font-weight: bold; border: 1px solid #cbd5e1; vertical-align: middle;">${item.code}</td>
+          <td style="border: 1px solid #cbd5e1; vertical-align: middle;">${item.name}</td>
+          <td style="border: 1px solid #cbd5e1; vertical-align: middle;">${item.categoryName}</td>
+          <td style="text-align: right; font-weight: bold; border: 1px solid #cbd5e1; vertical-align: middle;">${item.currentStock}</td>
+          <td style="border: 1px solid #cbd5e1; vertical-align: middle;">${item.unitName}</td>
+          <td style="text-align: right; border: 1px solid #cbd5e1; vertical-align: middle;">${item.minStock}</td>
+          <td style="text-align: right; border: 1px solid #cbd5e1; vertical-align: middle;">${item.targetStock}</td>
+          <td style="text-align: center; font-weight: bold; background-color: ${statusColor}; border: 1px solid #cbd5e1; vertical-align: middle;">
             ${item.status}
           </td>
         </tr>
@@ -79,26 +89,27 @@ export function exportStockSummaryToExcel(
       <body>
         <table>
           <tr>
-            <td colspan="9" class="header-title">PT AKSARA RIKSA PERDANA</td>
+            <td colspan="10" class="header-title">PT AKSARA RIKSA PERDANA</td>
           </tr>
           <tr>
-            <td colspan="9" style="font-size: 13pt; font-weight: bold; color: #1e293b;">LAPORAN REKAPITULASI STOK INVENTARIS</td>
+            <td colspan="10" style="font-size: 13pt; font-weight: bold; color: #1e293b;">LAPORAN REKAPITULASI STOK INVENTARIS</td>
           </tr>
           <tr>
-            <td colspan="9" class="header-sub">Tanggal Cetak: ${dateStr} &bull; Pencetak: ${options?.generatedBy || "Admin Gudang"}</td>
+            <td colspan="10" class="header-sub">Tanggal Cetak: ${dateStr} &bull; Pencetak: ${options?.generatedBy || "Admin Gudang"}</td>
           </tr>
           <tr><td></td></tr>
           <thead>
             <tr>
-              <th>No</th>
+              <th style="text-align: center; width: 40px;">No</th>
+              <th style="text-align: center; width: 80px;">Foto</th>
               <th>Kode Barang</th>
               <th>Nama Barang</th>
               <th>Kategori</th>
-              <th>Stok Terkini</th>
+              <th style="text-align: right;">Stok Terkini</th>
               <th>Satuan</th>
-              <th>Batas Min</th>
-              <th>Target</th>
-              <th>Status</th>
+              <th style="text-align: right;">Batas Min</th>
+              <th style="text-align: right;">Target</th>
+              <th style="text-align: center;">Status</th>
             </tr>
           </thead>
           <tbody>

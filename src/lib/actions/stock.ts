@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateNextItemCode, findSimilarItems } from "@/lib/stock-logic";
+import {
+  generateNextItemCode,
+  findSimilarItems,
+  calculateResequencedCodes,
+} from "@/lib/stock-logic";
 
 export interface StockOutInput {
   clientUuid: string;
@@ -432,15 +436,44 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
     }
   }
 
-  // 4. Kategori
+  // 4. Kategori & Jenis (Kind)
   let categoryId = oldItem.category_id;
-  if (input.categoryCode && input.categoryCode !== oldItem.category?.code) {
-    const { data: newCat } = await supabase
+  let targetKind = oldItem.kind;
+  const oldCategoryCode = (oldItem.category as any)?.code;
+  const isCategoryChanged =
+    Boolean(input.categoryCode) &&
+    input.categoryCode.trim().toUpperCase() !== oldCategoryCode?.trim().toUpperCase();
+
+  if (isCategoryChanged) {
+    const targetCatCode = input.categoryCode.trim().toUpperCase();
+    let { data: newCat } = await supabase
       .from("categories")
-      .select("id")
-      .eq("code", input.categoryCode)
+      .select("id, code, name, kind")
+      .eq("code", targetCatCode)
       .maybeSingle();
-    if (newCat) categoryId = newCat.id;
+
+    if (!newCat && targetCatCode === "IT") {
+      const { data: createdIT, error: createErr } = await supabase
+        .from("categories")
+        .insert({
+          code: "IT",
+          name: "Peralatan IT & Multimedia",
+          kind: "INSTRUMENT",
+        })
+        .select("id, code, name, kind")
+        .single();
+      if (createErr) {
+        return { success: false, error: "Gagal membuat kategori IT: " + createErr.message };
+      }
+      newCat = createdIT;
+    }
+
+    if (!newCat) {
+      return { success: false, error: `Kategori "${targetCatCode}" tidak ditemukan di sistem.` };
+    }
+
+    categoryId = newCat.id;
+    targetKind = newCat.kind;
   }
 
   // 5. Satuan (hanya jika belum ada transaksi dan diberikan nama baru)
@@ -466,9 +499,40 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
 
   // 6. Kode baru (bisa diubah oleh Admin kapan saja, divalidasi keunikan kodenya)
   let finalCode = oldItem.code;
-  if (input.code && input.code.trim().toUpperCase() !== oldItem.code) {
+  if (isCategoryChanged) {
+    const targetCatCode = input.categoryCode.trim().toUpperCase();
+    const candidate = input.code ? input.code.trim().toUpperCase() : "";
+
+    // Jika user memberikan kode baru dengan prefix kategori tujuan yang benar dan belum dipakai
+    if (candidate && candidate.startsWith(`${targetCatCode}-`) && candidate !== oldItem.code) {
+      const { data: existingCode } = await supabase
+        .from("items")
+        .select("id")
+        .eq("code", candidate)
+        .neq("id", input.itemId)
+        .maybeSingle();
+
+      if (existingCode) {
+        const { data: targetCatItems } = await supabase
+          .from("items")
+          .select("code")
+          .eq("category_id", categoryId)
+          .neq("id", input.itemId);
+        finalCode = generateNextItemCode(targetCatCode, (targetCatItems || []).map((i) => i.code));
+      } else {
+        finalCode = candidate;
+      }
+    } else {
+      // Otomatis hasilkan nomor kode berikutnya untuk kategori baru
+      const { data: targetCatItems } = await supabase
+        .from("items")
+        .select("code")
+        .eq("category_id", categoryId)
+        .neq("id", input.itemId);
+      finalCode = generateNextItemCode(targetCatCode, (targetCatItems || []).map((i) => i.code));
+    }
+  } else if (input.code && input.code.trim().toUpperCase() !== oldItem.code) {
     const newCodeCandidate = input.code.trim().toUpperCase();
-    // Cek duplikasi dengan barang lain (baik aktif maupun nonaktif)
     const { data: existingCode } = await supabase
       .from("items")
       .select("id")
@@ -499,6 +563,9 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
   if (oldItem.code !== finalCode) {
     diff.code = { old: oldItem.code, new: finalCode };
   }
+  if (oldItem.kind !== targetKind) {
+    diff.kind = { old: oldItem.kind, new: targetKind };
+  }
   if (input.defaultLocationId && oldItem.default_location_id !== input.defaultLocationId) {
     diff.default_location_id = { old: oldItem.default_location_id, new: input.defaultLocationId };
   }
@@ -509,6 +576,7 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
     .update({
       name: input.name.trim(),
       category_id: categoryId,
+      kind: targetKind,
       base_unit_id: baseUnitId,
       code: finalCode,
       min_stock: Number(input.minStock || 0),
@@ -536,6 +604,22 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
     }
   }
 
+  // 10. Otomatis rapikan urutan nomor kode jika terjadi perpindahan kategori
+  if (isCategoryChanged) {
+    if (oldCategoryCode) {
+      try {
+        await resequenceCategoryCodes(oldCategoryCode, supabase);
+      } catch (err) {
+        console.warn(`Gagal resequence kategori lama ${oldCategoryCode}:`, err);
+      }
+    }
+    try {
+      await resequenceCategoryCodes(input.categoryCode, supabase);
+    } catch (err) {
+      console.warn(`Gagal resequence kategori baru ${input.categoryCode}:`, err);
+    }
+  }
+
   revalidatePath("/barang");
   revalidatePath("/");
   revalidatePath("/keluar");
@@ -543,6 +627,219 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
   revalidatePath("/opname");
 
   return { success: true };
+}
+
+/**
+ * Merapikan nomor urut kode barang (PREFIX-001, PREFIX-002, ...) dalam satu kategori
+ * agar kontinu dan tidak ada nomor yang bolong, menggunakan update dua tahap yang aman dari konflik key.
+ */
+export async function resequenceCategoryCodes(
+  categoryCode: string,
+  supabaseClient?: any
+): Promise<{ success: boolean; updatedCount: number; error?: string }> {
+  const supabase = supabaseClient || createAdminClient();
+  const cleanPrefix = categoryCode.trim().toUpperCase();
+
+  // 1. Ambil kategori
+  const { data: cat } = await supabase
+    .from("categories")
+    .select("id, code")
+    .eq("code", cleanPrefix)
+    .maybeSingle();
+
+  if (!cat) {
+    return { success: false, updatedCount: 0, error: `Kategori ${cleanPrefix} tidak ditemukan.` };
+  }
+
+  // 2. Ambil seluruh barang dalam kategori ini (termasuk nonaktif)
+  const { data: items, error: fetchErr } = await supabase
+    .from("items")
+    .select("id, code, created_at")
+    .eq("category_id", cat.id);
+
+  if (fetchErr || !items || items.length === 0) {
+    return { success: true, updatedCount: 0 };
+  }
+
+  // 3. Hitung pemetaan resequence menggunakan algoritma deterministik
+  const plan = calculateResequencedCodes(cleanPrefix, items);
+  const changedItems = plan.filter((p) => p.changed);
+
+  if (changedItems.length === 0) {
+    return { success: true, updatedCount: 0 };
+  }
+
+  // 4. Update aman dua tahap untuk menghindari benturan unique constraint:
+  // Tahap A: Beri kode temporary unik
+  for (let i = 0; i < changedItems.length; i++) {
+    const item = changedItems[i];
+    const tempCode = `__TMP_${item.id.replace(/-/g, "").slice(0, 8)}_${i}_${Date.now()}`;
+    const { error: tempErr } = await supabase
+      .from("items")
+      .update({ code: tempCode, updated_at: new Date().toISOString() })
+      .eq("id", item.id);
+
+    if (tempErr) {
+      console.error(`Gagal set temp code item ${item.id}:`, tempErr);
+      return { success: false, updatedCount: 0, error: tempErr.message };
+    }
+  }
+
+  // Tahap B: Set ke kode final yang rapi (PREFIX-001, PREFIX-002, ...)
+  for (const item of changedItems) {
+    const { error: finalErr } = await supabase
+      .from("items")
+      .update({ code: item.newCode, updated_at: new Date().toISOString() })
+      .eq("id", item.id);
+
+    if (finalErr) {
+      console.error(`Gagal set final code item ${item.id} -> ${item.newCode}:`, finalErr);
+      return { success: false, updatedCount: 0, error: finalErr.message };
+    }
+  }
+
+  return { success: true, updatedCount: changedItems.length };
+}
+
+/**
+ * Server Action: Merapikan nomor urut kode barang pada suatu kategori secara manual
+ */
+export async function manualResequenceCategoryAction(categoryCode: string) {
+  const res = await resequenceCategoryCodes(categoryCode);
+  if (res.success) {
+    revalidatePath("/barang");
+    revalidatePath("/");
+    revalidatePath("/keluar");
+    revalidatePath("/masuk");
+    revalidatePath("/opname");
+    revalidatePath("/riwayat");
+  }
+  return res;
+}
+
+/**
+ * Hapus Master Barang Secara Permanen (Hanya jika belum memiliki riwayat mutasi stok)
+ * 1. Cek apakah ada riwayat di stock_movements, stock_take_lines, purchase_lines.
+ * 2. Jika ada mutasi: TOLAK dengan pesan jelas (anjurkan Nonaktifkan).
+ * 3. Jika tidak ada mutasi: bersihkan data pendukung non-restriktif, lalu hapus master item.
+ * 4. Catat ke audit_log.
+ * 5. Otomatis merapikan nomor urut kode barang (resequence) pada kategori terkait.
+ */
+export async function deleteItemAction(input: { itemId: string }): Promise<{
+  success: boolean;
+  error?: string;
+  message?: string;
+}> {
+  if (!input.itemId) {
+    return { success: false, error: "ID barang tidak valid." };
+  }
+
+  const supabase = createAdminClient();
+
+  // 1. Ambil data barang yang akan dihapus
+  const { data: item, error: fetchErr } = await supabase
+    .from("items")
+    .select("id, code, name, category_id, category:categories(code, name)")
+    .eq("id", input.itemId)
+    .single();
+
+  if (fetchErr || !item) {
+    return { success: false, error: "Barang tidak ditemukan atau sudah dihapus." };
+  }
+
+  // 2. Periksa apakah barang memiliki riwayat transaksi di stock_movements
+  const { count: txCount } = await supabase
+    .from("stock_movements")
+    .select("id", { count: "exact", head: true })
+    .eq("item_id", input.itemId);
+
+  if ((txCount || 0) > 0) {
+    return {
+      success: false,
+      error: `Barang "${item.name}" (${item.code}) sudah memiliki ${txCount} catatan mutasi stok. Sesuai prinsip integritas audit, barang tidak dapat dihapus permanen agar data historis tidak rusak. Gunakan tombol "Nonaktifkan" untuk menyembunyikannya.`,
+    };
+  }
+
+  // 3. Periksa relasi lain: stock_take_lines
+  const { count: stCount } = await supabase
+    .from("stock_take_lines")
+    .select("id", { count: "exact", head: true })
+    .eq("item_id", input.itemId);
+
+  if ((stCount || 0) > 0) {
+    return {
+      success: false,
+      error: `Barang "${item.name}" (${item.code}) tercatat dalam ${stCount} baris stock opname. Silakan gunakan tombol "Nonaktifkan".`,
+    };
+  }
+
+  // 4. Periksa relasi: purchase_lines
+  const { count: poCount } = await supabase
+    .from("purchase_lines")
+    .select("id", { count: "exact", head: true })
+    .eq("item_id", input.itemId);
+
+  if ((poCount || 0) > 0) {
+    return {
+      success: false,
+      error: `Barang "${item.name}" (${item.code}) memiliki riwayat data pembelian. Silakan gunakan tombol "Nonaktifkan".`,
+    };
+  }
+
+  // 5. Bersihkan entitas anak jika ada (unit_conversions, price_history)
+  await supabase.from("unit_conversions").delete().eq("item_id", input.itemId);
+  await supabase.from("price_history").delete().eq("item_id", input.itemId);
+
+  // 6. Hapus fisik barang dari tabel items
+  const { error: deleteErr } = await supabase
+    .from("items")
+    .delete()
+    .eq("id", input.itemId);
+
+  if (deleteErr) {
+    return { success: false, error: "Gagal menghapus barang: " + deleteErr.message };
+  }
+
+  // 7. Catat ke audit_log
+  try {
+    await supabase.from("audit_log").insert({
+      entity: "items",
+      entity_id: input.itemId,
+      action: "DELETE",
+      diff: {
+        deleted_item: {
+          code: item.code,
+          name: item.name,
+          category: (item.category as any)?.code || null,
+        },
+      },
+    });
+  } catch (err) {
+    console.warn("Gagal mencatat audit log hapus:", err);
+  }
+
+  // 8. Otomatis rapikan kembali nomor urut kode barang pada kategori tersebut
+  const catCode = (item.category as any)?.code;
+  if (catCode) {
+    try {
+      await resequenceCategoryCodes(catCode, supabase);
+    } catch (resErr) {
+      console.warn(`Gagal merapikan urutan nomor kategori ${catCode}:`, resErr);
+    }
+  }
+
+  revalidatePath("/barang");
+  revalidatePath("/");
+  revalidatePath("/keluar");
+  revalidatePath("/masuk");
+  revalidatePath("/opname");
+  revalidatePath("/riwayat");
+  revalidatePath("/laporan");
+
+  return {
+    success: true,
+    message: `Barang "${item.name}" (${item.code}) berhasil dihapus dan urutan nomor kategori ${catCode || ""} telah otomatis dirapikan.`,
+  };
 }
 
 /**

@@ -13,8 +13,9 @@ export interface StockSummaryItem {
   currentStock: number;
   minStock: number;
   targetStock: number;
-  status: StockStatus;
+  status: StockStatus | "BELUM_DIHITUNG" | string;
   kind: string;
+  photo_path?: string | null;
 }
 
 export interface PersonUsageItemBreakdown {
@@ -309,6 +310,7 @@ export async function getInventoryReportData() {
       targetStock: item.target_stock,
       status,
       kind: item.kind,
+      photo_path: item.photo_path || null,
     };
   });
 

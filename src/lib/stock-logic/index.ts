@@ -270,3 +270,51 @@ export function findSimilarItems<T extends { id?: string; name: string; code?: s
 
   return matched.slice(0, 3);
 }
+
+export interface ResequenceResult {
+  id: string;
+  oldCode: string;
+  newCode: string;
+  changed: boolean;
+}
+
+/**
+ * Menghitung pemetaan nomor urut baru untuk daftar barang dalam satu kategori.
+ * Memastikan format PREFIX-001, PREFIX-002, dst. kontinu tanpa ada nomor yang bolong.
+ * Mengurutkan barang berdasarkan nomor pada kode lamanya secara numerik, lalu tanggal pembuatan.
+ */
+export function calculateResequencedCodes<
+  T extends { id: string; code: string; created_at?: string }
+>(prefix: string, items: T[]): ResequenceResult[] {
+  const cleanPrefix = prefix.trim().toUpperCase();
+
+  // Urutkan item berdasarkan nomor pada kodenya secara numerik, lalu tanggal pembuatan / kode
+  const sorted = [...items].sort((a, b) => {
+    const numRegex = new RegExp(`^${cleanPrefix}-(\\d+)$`, "i");
+    const matchA = a.code?.trim().match(numRegex);
+    const matchB = b.code?.trim().match(numRegex);
+
+    const numA = matchA ? parseInt(matchA[1], 10) : Number.MAX_SAFE_INTEGER;
+    const numB = matchB ? parseInt(matchB[1], 10) : Number.MAX_SAFE_INTEGER;
+
+    if (numA !== numB) {
+      return numA - numB;
+    }
+
+    if (a.created_at && b.created_at) {
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+    return (a.code || "").localeCompare(b.code || "", undefined, { numeric: true });
+  });
+
+  return sorted.map((item, index) => {
+    const newCode = `${cleanPrefix}-${String(index + 1).padStart(3, "0")}`;
+    return {
+      id: item.id,
+      oldCode: item.code,
+      newCode,
+      changed: item.code !== newCode,
+    };
+  });
+}
+
