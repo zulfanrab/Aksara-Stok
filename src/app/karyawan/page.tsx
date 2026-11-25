@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getPeople } from "@/lib/services/inventory";
 import { KaryawanClient } from "./KaryawanClient";
 import { Navbar } from "@/components/layout/Navbar";
@@ -9,6 +10,7 @@ export const metadata = {
 };
 
 export default async function KaryawanPage() {
+  await connection();
   const people = await getPeople();
 
   return (

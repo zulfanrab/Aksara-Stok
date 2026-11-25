@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getItems, getUnits, getUnitConversions } from "@/lib/services/inventory";
 import { MasukClient } from "./MasukClient";
 import { Navbar } from "@/components/layout/Navbar";
@@ -8,7 +9,13 @@ export const metadata = {
   description: "Pencatatan barang masuk dengan konversi satuan kemasan",
 };
 
-export default async function MasukPage() {
+interface MasukPageProps {
+  searchParams?: Promise<{ itemId?: string }>;
+}
+
+export default async function MasukPage({ searchParams }: MasukPageProps) {
+  await connection();
+  const resolvedParams = searchParams ? await searchParams : {};
   const [items, units, conversions] = await Promise.all([
     getItems(),
     getUnits(),
@@ -23,6 +30,7 @@ export default async function MasukPage() {
           items={items}
           units={units}
           conversions={conversions}
+          initialItemId={resolvedParams.itemId}
         />
       </main>
       <BottomNav />

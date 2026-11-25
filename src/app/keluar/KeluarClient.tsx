@@ -33,6 +33,7 @@ interface KeluarClientProps {
   people: Person[];
   projects: Project[];
   stockMap: Record<string, number>;
+  initialItemId?: string;
 }
 
 export function KeluarClient({
@@ -40,6 +41,7 @@ export function KeluarClient({
   people: initialPeople,
   projects: initialProjects,
   stockMap: initialStockMap,
+  initialItemId = "",
 }: KeluarClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -49,11 +51,11 @@ export function KeluarClient({
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [stockMap, setStockMap] = useState<Record<string, number>>(initialStockMap);
 
-  const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [selectedItemId, setSelectedItemId] = useState<string>(initialItemId);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchItem, setSearchItem] = useState<string>("");
   const [qty, setQty] = useState<number>(1);
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(initialPeople[0]?.id || "");
+  const [selectedPersonId, setSelectedPersonId] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [note, setNote] = useState<string>("");
 
@@ -67,6 +69,10 @@ export function KeluarClient({
     unitName: string;
     isOffline?: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    if (initialItemId) setSelectedItemId(initialItemId);
+  }, [initialItemId]);
 
   // Cache master data ke IndexedDB saat online & hydrate jika offline
   useEffect(() => {
@@ -82,10 +88,7 @@ export function KeluarClient({
         const cachedProjects = await getCachedMasterData<Project[]>("projects");
         const cachedStockMap = await getCachedMasterData<Record<string, number>>("stockMap");
         if (cachedItems) setItems(cachedItems);
-        if (cachedPeople) {
-          setPeople(cachedPeople);
-          if (!selectedPersonId && cachedPeople[0]) setSelectedPersonId(cachedPeople[0].id);
-        }
+        if (cachedPeople) setPeople(cachedPeople);
         if (cachedProjects) setProjects(cachedProjects);
         if (cachedStockMap) setStockMap(cachedStockMap);
       }
@@ -197,6 +200,10 @@ export function KeluarClient({
         });
 
         if (res.success) {
+          setStockMap((prev) => ({
+            ...prev,
+            [selectedItemId]: Number(((prev[selectedItemId] || 0) - qty).toFixed(4)),
+          }));
           setSuccessData({
             itemName: selectedItem?.name || "",
             qty,
@@ -205,6 +212,7 @@ export function KeluarClient({
           });
           setQty(1);
           setNote("");
+          router.refresh();
         } else {
           setErrorMsg(res.error || "Gagal mencatat pengeluaran.");
         }
@@ -424,6 +432,9 @@ export function KeluarClient({
                             <img
                               src={photoUrl}
                               alt={item.name}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
                               className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
                             />
                           ) : (
@@ -538,9 +549,13 @@ export function KeluarClient({
             <div className="flex items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
               <button
                 type="button"
-                onClick={() => setQty((prev) => Math.max(1, prev - 1))}
+                onClick={() =>
+                  setQty((prev) =>
+                    prev > 1 ? Number((prev - 1).toFixed(4)) : Number(Math.max(0.1, prev - 0.5).toFixed(2))
+                  )
+                }
                 className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs active:scale-90 touch-target text-xl font-bold transition-transform"
-                aria-label="Kurangi 1"
+                aria-label="Kurangi"
               >
                 <Minus className="w-6 h-6 stroke-[2.5]" />
               </button>
@@ -548,12 +563,13 @@ export function KeluarClient({
               <div className="flex-1 text-center">
                 <input
                   type="number"
-                  inputMode="numeric"
-                  min="1"
+                  inputMode="decimal"
+                  min="0.01"
+                  step="any"
                   value={qty}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    setQty(isNaN(val) ? 1 : Math.max(1, val));
+                    const val = parseFloat(e.target.value);
+                    setQty(isNaN(val) ? 1 : Math.max(0.01, val));
                   }}
                   className="w-full text-center text-4xl font-extrabold text-slate-900 bg-transparent focus:outline-none num-mono tracking-tight"
                 />
@@ -564,7 +580,7 @@ export function KeluarClient({
 
               <button
                 type="button"
-                onClick={() => setQty((prev) => prev + 1)}
+                onClick={() => setQty((prev) => Number((prev + 1).toFixed(4)))}
                 className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs active:scale-90 touch-target text-xl font-bold transition-transform"
                 aria-label="Tambah 1"
               >
@@ -572,13 +588,18 @@ export function KeluarClient({
               </button>
             </div>
 
-            {/* Quick Chips Increment (+1, +5, +10, Max) */}
+            {/* Quick Chips Increment */}
             <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar">
-              {[1, 5, 10, 25].map((inc) => (
+              {(["ml", "cm", "gram", "gr", "meter", "m", "liter"].includes(
+                (selectedItem.unit?.name || "").trim().toLowerCase()
+              )
+                ? [10, 50, 100, 250, 500]
+                : [1, 5, 10, 25]
+              ).map((inc) => (
                 <button
                   key={inc}
                   type="button"
-                  onClick={() => setQty((prev) => prev + inc)}
+                  onClick={() => setQty((prev) => Number((prev + inc).toFixed(4)))}
                   className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-xs font-bold text-slate-700 touch-target active:scale-95 transition-all shadow-2xs"
                 >
                   +{inc}
@@ -621,8 +642,12 @@ export function KeluarClient({
             <select
               value={selectedPersonId}
               onChange={(e) => setSelectedPersonId(e.target.value)}
-              className="w-full min-h-[48px] py-3 px-3.5 rounded-2xl border border-slate-300 bg-white text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+              className={cn(
+                "w-full min-h-[48px] py-3 px-3.5 rounded-2xl border bg-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target",
+                !selectedPersonId ? "border-amber-400 text-slate-500" : "border-slate-300 text-slate-900"
+              )}
             >
+              <option value="">-- Pilih Karyawan Pemakai --</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} — {p.position}

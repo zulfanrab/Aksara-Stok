@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { getStockTakeById } from "@/lib/services/inventory";
 import { BeritaAcaraClient } from "./BeritaAcaraClient";
@@ -14,6 +15,7 @@ export default async function BeritaAcaraPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await connection();
   const { id } = await params;
   const { stockTake, lines } = await getStockTakeById(id);
 

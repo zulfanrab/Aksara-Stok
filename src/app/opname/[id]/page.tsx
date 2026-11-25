@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { getStockTakeById, getProfiles } from "@/lib/services/inventory";
 import { ReviewClient } from "./ReviewClient";
@@ -14,6 +15,7 @@ export default async function OpnameDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await connection();
   const { id } = await params;
   const [{ stockTake, lines }, profiles] = await Promise.all([
     getStockTakeById(id),

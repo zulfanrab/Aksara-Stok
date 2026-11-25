@@ -12,6 +12,7 @@ import {
 } from "../index";
 import { APP_VERSION, RELEASES } from "@/lib/changelog";
 import { APP_PIN, validateAppPin } from "@/lib/auth/pin";
+import { aggregateUsageByPerson, aggregateUsageByProject } from "@/lib/services/reports";
 
 describe("Logika Ledger Stok (Append-Only)", () => {
   it("menghitung saldo awal dari transaksi IN, OUT, ADJUST, dan REVERSAL secara akurat", () => {
@@ -921,6 +922,64 @@ describe("Keamanan PIN Pembuka Akses Aplikasi (Shared PIN)", () => {
     expect(validateAppPin("99999")).toBe(false);
     expect(validateAppPin("")).toBe(false);
     expect(validateAppPin("abcd")).toBe(false);
+  });
+});
+
+describe("Integritas Laporan Reversal & Foto Wajib Opname", () => {
+  it("mengurangi agregasi pemakaian karyawan & proyek saat terjadi transaksi pembalik (REVERSAL)", () => {
+    const people = [
+      { id: "p-1", employee_code: "EMP-01", name: "Rama Regawa", position: "Inspector", is_active: true },
+    ];
+    const projects = [
+      { id: "prj-1", name: "Audit K3 PT ABC", client: "PT ABC", is_active: true },
+    ];
+    const movements = [
+      {
+        id: "mov-out-1",
+        item_id: "item-1",
+        type: "OUT",
+        qty: 5,
+        person_id: "p-1",
+        project_id: "prj-1",
+        item: { code: "ATK-001", name: "Pulpen Gel", unit: { name: "Pcs" } },
+      },
+      {
+        id: "mov-rev-1",
+        item_id: "item-1",
+        type: "REVERSAL",
+        qty: -2, // Membatalkan 2 Pcs dari pengeluaran di atas (saldo kembali +2, pemakaian bersih = 3)
+        person_id: "p-1",
+        project_id: "prj-1",
+        item: { code: "ATK-001", name: "Pulpen Gel", unit: { name: "Pcs" } },
+      },
+    ];
+
+    const personUsage = aggregateUsageByPerson(movements, people);
+    expect(personUsage[0].totalQuantity).toBe(3);
+    expect(personUsage[0].totalTransactions).toBe(0); // 1 OUT - 1 REVERSAL
+
+    const projectUsage = aggregateUsageByProject(movements, projects);
+    expect(projectUsage[0].totalQuantity).toBe(3);
+  });
+
+  it("mewajibkan foto bukti pada instrumen bernilai tinggi yang berselisih meskipun harga satuan belum diinput", () => {
+    const resInstrument = calculateStockTakeDiscrepancy({
+      item_id: "alt-001",
+      system_qty: 2,
+      counted_qty: 1,
+      is_high_value: true,
+    });
+    expect(resInstrument.discrepancy_qty).toBe(-1);
+    expect(resInstrument.requires_photo).toBe(true);
+
+    const resConsumableCheap = calculateStockTakeDiscrepancy({
+      item_id: "atk-001",
+      system_qty: 10,
+      counted_qty: 9,
+      unit_price: 5000,
+      is_high_value: false,
+    });
+    expect(resConsumableCheap.requires_photo).toBe(false);
   });
 });
 

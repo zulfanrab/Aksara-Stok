@@ -150,7 +150,9 @@ export function calculateStockTakeDiscrepancy(
 
   const requires_recount = !is_within_tolerance;
   const requires_explanation = discrepancy_qty !== 0;
-  const requires_photo = Math.abs(discrepancy_value) >= 100000;
+  const requires_photo =
+    (Boolean(input.is_high_value) && discrepancy_qty !== 0) ||
+    Math.abs(discrepancy_value) >= 100000;
 
   return {
     effective_counted_qty: effectiveCount,

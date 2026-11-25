@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getInventoryReportData } from "@/lib/services/reports";
 import { LaporanClient } from "./LaporanClient";
 import { Navbar } from "@/components/layout/Navbar";
@@ -9,6 +10,7 @@ export const metadata = {
 };
 
 export default async function LaporanPage() {
+  await connection();
   const reportData = await getInventoryReportData();
 
   return (

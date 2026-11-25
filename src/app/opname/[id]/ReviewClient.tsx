@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle2, AlertTriangle, AlertCircle, Clock, Printer, RotateCcw, ShieldCheck, UserCheck, Lock, ArrowRight, Eye, RefreshCw, X, ShieldAlert, Camera, Search } from "lucide-react";
 import type { StockTakeWithDetails, StockTakeLineWithItem, Profile } from "@/lib/services/inventory";
 import { calculateStockTakeDiscrepancy } from "@/lib/stock-logic";
-import { approveStockTakeAction, postStockTakeAction, submitRecountLineAction } from "@/lib/actions/opname";
+import { approveStockTakeAction, postStockTakeAction, submitRecountLineAction, markStockTakeReviewAction } from "@/lib/actions/opname";
 import { updateStockTakeLinePhotoAction } from "@/lib/actions/upload";
 import { PhotoThumbnail } from "@/components/camera/PhotoThumbnail";
 import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
@@ -25,9 +25,22 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
   const [activePhotoLine, setActivePhotoLine] = useState<StockTakeLineWithItem | null>(null);
   const [recountQty, setRecountQty] = useState<number>(0);
   const [recountReason, setRecountReason] = useState<string>("");
-  const [selectedApproverId, setSelectedApproverId] = useState<string>(
-    profiles.find((p) => p.role === "MANAJER")?.id || profiles[0]?.id || ""
+  const counterPersonIds = useMemo(
+    () => new Set(lines.map((l) => l.counted_by_person_id).filter(Boolean) as string[]),
+    [lines]
   );
+
+  const [selectedApproverId, setSelectedApproverId] = useState<string>(() => {
+    const cSet = new Set(initialLines.map((l) => l.counted_by_person_id).filter(Boolean) as string[]);
+    const eligible = profiles.filter((p) => !p.person_id || !cSet.has(p.person_id));
+    return (
+      eligible.find((p) => p.role === "MANAJER")?.id ||
+      eligible[0]?.id ||
+      profiles.find((p) => p.role === "MANAJER")?.id ||
+      profiles[0]?.id ||
+      ""
+    );
+  });
   const [errorMsg, setErrorMsg] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -54,6 +67,7 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
         system_qty: Number(line.system_qty),
         counted_qty: Number(line.counted_qty || 0),
         recount_qty: line.recount_qty !== null ? Number(line.recount_qty) : null,
+        unit_price: line.item?.unit_price,
         is_high_value: isHighValue,
       });
 
@@ -258,22 +272,46 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
               </div>
 
               {stockTake.status === "COUNTING" || stockTake.status === "REVIEW" ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {stockTake.status === "COUNTING" && totalLines > 0 && countedLines === totalLines && (
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        setErrorMsg("");
+                        startTransition(async () => {
+                          const res = await markStockTakeReviewAction(stockTake.id);
+                          if (res.success) {
+                            window.location.reload();
+                          } else {
+                            setErrorMsg(res.error || "Gagal memindahkan ke status Review.");
+                          }
+                        });
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-xs touch-target transition-colors"
+                    >
+                      Selesaikan ke Status Review
+                    </button>
+                  )}
+
                   <select
                     value={selectedApproverId}
                     onChange={(e) => setSelectedApproverId(e.target.value)}
                     className="py-2 px-3 rounded-xl border border-[var(--slate-200)] bg-white text-xs font-semibold text-[var(--slate-900)] focus:outline-none"
                   >
-                    {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.full_name} ({p.role})
-                      </option>
-                    ))}
+                    {profiles.map((p) => {
+                      const isCounter = Boolean(p.person_id && counterPersonIds.has(p.person_id));
+                      return (
+                        <option key={p.id} value={p.id} disabled={isCounter}>
+                          {p.full_name} ({p.role}){isCounter ? " — Ikut Menghitung" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                   <button
                     onClick={handleApprove}
-                    disabled={isPending || countedLines === 0}
-                    className="px-4 py-2 rounded-xl bg-[var(--indigo-700)] hover:bg-[var(--indigo-500)] text-white text-xs font-semibold shadow-xs touch-target transition-colors"
+                    disabled={isPending || countedLines < totalLines || !selectedApproverId}
+                    className="px-4 py-2 rounded-xl bg-[var(--indigo-700)] hover:bg-[var(--indigo-500)] disabled:bg-slate-300 disabled:text-slate-500 text-white text-xs font-semibold shadow-xs touch-target transition-colors"
                   >
                     Setujui Sesi (Approve)
                   </button>
@@ -289,6 +327,16 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
                 </button>
               ) : null}
             </div>
+
+            {countedLines < totalLines && (stockTake.status === "COUNTING" || stockTake.status === "REVIEW") && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>
+                  Masih ada <strong>{totalLines - countedLines}</strong> barang yang belum dihitung fisik.
+                  Selesaikan seluruh hitung buta sebelum menyetujui sesi agar stok tidak tercatat 0 secara keliru.
+                </span>
+              </div>
+            )}
 
             {errorMsg && (
               <div className="p-3 rounded-xl bg-[var(--rose-50)] border border-[var(--rose-500)]/20 text-xs font-semibold text-[var(--rose-700)] flex items-center gap-2">
@@ -361,7 +409,113 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
 
       {/* Tabel Baris Opname (Desktop/Tablet) & Kartu (Mobile) */}
       <div className="bg-white rounded-2xl border border-[var(--slate-200)] overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        {/* Kartu Mobile (< md) */}
+        <div className="md:hidden divide-y divide-[var(--slate-200)]">
+          {filteredLines.length === 0 ? (
+            <div className="py-12 px-4 text-center text-xs text-[var(--slate-400)]">
+              Tidak ada item pada filter ini.
+            </div>
+          ) : (
+            filteredLines.map((line) => {
+              const isCounted = line.isCounted;
+              const diff = line.discrepancy;
+              const unit = line.item?.unit?.name || "Unit";
+
+              return (
+                <div key={line.id} className="p-3.5 space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="num-mono font-bold text-[11px] text-[var(--emerald-700)] block">
+                        {line.item?.code}
+                      </span>
+                      <div className="font-bold text-xs text-[var(--slate-900)]">{line.item?.name}</div>
+                      <span className="text-[11px] text-[var(--slate-400)]">
+                        {line.item?.category?.name}
+                        {line.counter?.name ? ` • Dihitung: ${line.counter.name}` : ""}
+                      </span>
+                    </div>
+                    {!isCounted ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0">
+                        Belum
+                      </span>
+                    ) : diff === 0 ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--emerald-50)] text-[var(--emerald-700)] shrink-0">
+                        Sesuai (0)
+                      </span>
+                    ) : line.isWithinTolerance ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--emerald-50)] text-[var(--emerald-700)] shrink-0">
+                        Dalam Toleransi
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--rose-50)] text-[var(--rose-700)] shrink-0">
+                        Luar Toleransi
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center bg-slate-50 rounded-xl p-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block">Sistem</span>
+                      <strong className="num-mono text-slate-800">
+                        {line.system_qty} {unit}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Fisik</span>
+                      <strong className="num-mono text-slate-900">
+                        {isCounted ? `${line.effectiveCount} ${unit}` : "-"}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Selisih</span>
+                      <strong
+                        className={cn(
+                          "num-mono",
+                          !isCounted
+                            ? "text-slate-400"
+                            : diff > 0
+                            ? "text-emerald-700"
+                            : diff < 0
+                            ? "text-rose-700"
+                            : "text-emerald-700"
+                        )}
+                      >
+                        {!isCounted ? "-" : diff > 0 ? `+${diff}` : diff}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {isCounted && diff !== 0 && (
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <PhotoThumbnail
+                        photoPath={line.photo_path}
+                        altText={`Bukti: ${line.item?.name}`}
+                        required={line.requiresPhoto}
+                        onOpenUpload={() => setActivePhotoLine(line)}
+                      />
+                      {stockTake.status !== "POSTED" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRecountingLine(line);
+                            setRecountQty(line.effectiveCount);
+                            setRecountReason(line.reason || "");
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-[var(--slate-200)] bg-white text-xs font-semibold text-slate-700 touch-target inline-flex items-center gap-1"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Hitung Ulang</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-[var(--bg-canvas)] border-b border-[var(--slate-200)] text-xs font-bold text-[var(--slate-700)] uppercase">
               <tr>
@@ -533,9 +687,14 @@ export function ReviewClient({ stockTake, lines: initialLines, profiles }: Revie
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min="0"
+                  step="any"
                   value={recountQty}
-                  onChange={(e) => setRecountQty(Math.max(0, parseInt(e.target.value) || 0))}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setRecountQty(isNaN(val) ? 0 : Math.max(0, val));
+                  }}
                   className="w-full p-3 rounded-xl border border-[var(--slate-200)] bg-[var(--bg-canvas)] text-lg font-bold text-[var(--slate-900)] num-mono focus:ring-2 focus:ring-[var(--emerald-600)] focus:outline-none"
                 />
               </div>

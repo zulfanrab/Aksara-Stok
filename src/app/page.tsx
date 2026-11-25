@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/services/inventory";
 
 export default async function Home() {
+  await connection();
   const [items, stockMap, stockTakes, recentMovements] = await Promise.all([
     getItems(),
     getCurrentStockMap(),
@@ -524,7 +526,17 @@ export default async function Home() {
 
                         <div className="text-right shrink-0">
                           <span className="text-xs font-bold text-slate-900 num-mono">
-                            {isIn ? `+${mov.qty}` : isOut ? `-${mov.qty}` : mov.qty} {mov.item?.unit?.name || ""}
+                            {(() => {
+                              const signedQty = isIn
+                                ? Number(mov.qty)
+                                : isOut
+                                ? -Number(mov.qty)
+                                : isReversal
+                                ? -Number(mov.qty)
+                                : Number(mov.qty);
+                              return signedQty > 0 ? `+${signedQty}` : `${signedQty}`;
+                            })()}{" "}
+                            {mov.item?.unit?.name || ""}
                           </span>
                         </div>
                       </div>

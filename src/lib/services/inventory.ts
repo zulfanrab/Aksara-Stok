@@ -20,6 +20,13 @@ export interface StockMovementWithDetails {
   person?: { id: string; name: string; position: string; employee_code: string } | null;
   project?: { id: string; name: string; client: string | null } | null;
   location?: { id: string; name: string } | null;
+  purchase?: {
+    id: string;
+    supplier: string;
+    invoice_no: string | null;
+    receipt_path: string | null;
+    purchased_at: string;
+  } | null;
 }
 
 export interface UnitConversion {
@@ -74,6 +81,7 @@ export interface StockTakeLineWithItem {
     name: string;
     kind: string;
     photo_path?: string | null;
+    unit_price?: number;
     unit?: { name: string };
     category?: { name: string; code: string };
   };
@@ -288,7 +296,35 @@ export async function getMovements(limit = 50): Promise<StockMovementWithDetails
     console.error("Error fetching stock movements:", error);
     return [];
   }
-  return (data as unknown as StockMovementWithDetails[]) || [];
+
+  const movements = (data as unknown as StockMovementWithDetails[]) || [];
+
+  // Tautkan data pembelian (supplier, no nota, foto kuitansi) jika ref_type = 'PURCHASE'
+  const purchaseIds = Array.from(
+    new Set(
+      movements
+        .filter((m) => m.ref_type === "PURCHASE" && m.ref_id)
+        .map((m) => m.ref_id as string)
+    )
+  );
+
+  if (purchaseIds.length > 0) {
+    const { data: purchases } = await supabase
+      .from("purchases")
+      .select("id, supplier, invoice_no, receipt_path, purchased_at")
+      .in("id", purchaseIds);
+
+    if (purchases && purchases.length > 0) {
+      const pMap = new Map(purchases.map((p) => [p.id, p]));
+      for (const m of movements) {
+        if (m.ref_type === "PURCHASE" && m.ref_id) {
+          m.purchase = pMap.get(m.ref_id) || null;
+        }
+      }
+    }
+  }
+
+  return movements;
 }
 
 export async function getCurrentStockMap(): Promise<Record<string, number>> {
@@ -415,6 +451,33 @@ export async function getStockTakeById(id: string): Promise<{
     console.error("Error fetching stock take lines:", linesError);
   }
 
+  const enrichedLines = (lines as unknown as StockTakeLineWithItem[]) || [];
+
+  // Ambil harga beli terakhir dari price_history untuk evaluasi batas foto bukti (Rp100.000)
+  const itemIds = enrichedLines.map((l) => l.item_id).filter(Boolean);
+  if (itemIds.length > 0) {
+    const { data: prices } = await supabase
+      .from("price_history")
+      .select("item_id, unit_price_base, effective_date, created_at")
+      .in("item_id", itemIds)
+      .order("effective_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (prices && prices.length > 0) {
+      const latestPriceMap = new Map<string, number>();
+      for (const p of prices) {
+        if (!latestPriceMap.has(p.item_id)) {
+          latestPriceMap.set(p.item_id, Number(p.unit_price_base) || 0);
+        }
+      }
+      for (const line of enrichedLines) {
+        if (line.item && latestPriceMap.has(line.item_id)) {
+          line.item.unit_price = latestPriceMap.get(line.item_id);
+        }
+      }
+    }
+  }
+
   return {
     stockTake: {
       ...st,
@@ -422,6 +485,6 @@ export async function getStockTakeById(id: string): Promise<{
       starter: st.starter as unknown as { id: string; full_name: string; role: string } | null,
       approver: st.approver as unknown as { id: string; full_name: string; role: string } | null,
     },
-    lines: (lines as unknown as StockTakeLineWithItem[]) || [],
+    lines: enrichedLines,
   };
 }

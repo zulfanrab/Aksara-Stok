@@ -9,6 +9,7 @@ export interface StockSummaryItem {
   name: string;
   categoryName: string;
   categoryCode: string;
+  locationName?: string;
   unitName: string;
   currentStock: number;
   minStock: number;
@@ -57,6 +58,86 @@ export interface InventoryMetrics {
   activePeopleCount: number;
 }
 
+type UsageMovementInput = {
+  id: string;
+  item_id: string;
+  type: string;
+  qty: number;
+  person_id?: string | null;
+  project_id?: string | null;
+  item?: { code: string; name: string; unit?: { name: string } } | null;
+};
+
+function aggregateUsageByKey<TEntity extends { id: string }>(
+  movements: UsageMovementInput[],
+  entities: TEntity[],
+  getKey: (m: UsageMovementInput) => string | null | undefined
+) {
+  const entityMap = new Map<string, TEntity>();
+  entities.forEach((e) => entityMap.set(e.id, e));
+
+  const usageMap = new Map<
+    string,
+    {
+      totalTransactions: number;
+      totalQuantity: number;
+      items: Map<string, PersonUsageItemBreakdown>;
+    }
+  >();
+
+  entities.forEach((e) => {
+    usageMap.set(e.id, {
+      totalTransactions: 0,
+      totalQuantity: 0,
+      items: new Map(),
+    });
+  });
+
+  // Hitung mutasi OUT serta kurangi mutasi REVERSAL atas OUT (qty < 0)
+  for (const mov of movements) {
+    const entityId = getKey(mov);
+    if (!entityId) continue;
+
+    const isOut = mov.type === "OUT";
+    const isOutReversal = mov.type === "REVERSAL" && Number(mov.qty) < 0;
+    if (!isOut && !isOutReversal) continue;
+
+    let entry = usageMap.get(entityId);
+    if (!entry) {
+      entry = { totalTransactions: 0, totalQuantity: 0, items: new Map() };
+      usageMap.set(entityId, entry);
+    }
+
+    const deltaQty = isOut ? Number(mov.qty) : -Math.abs(Number(mov.qty));
+    const deltaTx = isOut ? 1 : -1;
+
+    entry.totalTransactions = Math.max(0, entry.totalTransactions + deltaTx);
+    entry.totalQuantity = Math.max(0, Number((entry.totalQuantity + deltaQty).toFixed(4)));
+
+    const itemId = mov.item_id;
+    const existingItem = entry.items.get(itemId);
+    const itemCode = mov.item?.code || "-";
+    const itemName = mov.item?.name || "Barang " + itemId;
+    const unitName = mov.item?.unit?.name || "Unit";
+
+    if (existingItem) {
+      existingItem.totalQty = Math.max(0, Number((existingItem.totalQty + deltaQty).toFixed(4)));
+      existingItem.transactionCount = Math.max(0, existingItem.transactionCount + deltaTx);
+    } else if (deltaQty > 0) {
+      entry.items.set(itemId, {
+        itemId,
+        itemCode,
+        itemName,
+        unitName,
+        totalQty: deltaQty,
+        transactionCount: 1,
+      });
+    }
+  }
+
+  return { entityMap, usageMap };
+}
+
 /**
  * Fungsi Murni: Agregasi pemakaian barang per orang (Pengguna Barang / people)
  */
@@ -71,70 +152,15 @@ export function aggregateUsageByPerson(
   }>,
   people: Person[]
 ): PersonUsageSummary[] {
-  const personMap = new Map<string, Person>();
-  people.forEach((p) => personMap.set(p.id, p));
+  const { entityMap, usageMap } = aggregateUsageByKey(movements, people, (m) => m.person_id);
 
-  const usageMap = new Map<
-    string,
-    {
-      totalTransactions: number;
-      totalQuantity: number;
-      items: Map<string, PersonUsageItemBreakdown>;
-    }
-  >();
-
-  // Inisialisasi map untuk setiap orang di tabel people
-  people.forEach((p) => {
-    usageMap.set(p.id, {
-      totalTransactions: 0,
-      totalQuantity: 0,
-      items: new Map(),
-    });
-  });
-
-  // Filter hanya mutasi OUT (Pengeluaran Barang)
-  const outMovements = movements.filter((m) => m.type === "OUT" && m.person_id);
-
-  for (const mov of outMovements) {
-    const personId = mov.person_id!;
-    let entry = usageMap.get(personId);
-    if (!entry) {
-      entry = { totalTransactions: 0, totalQuantity: 0, items: new Map() };
-      usageMap.set(personId, entry);
-    }
-
-    entry.totalTransactions += 1;
-    entry.totalQuantity += Number(mov.qty);
-
-    const itemId = mov.item_id;
-    const existingItem = entry.items.get(itemId);
-    const itemCode = mov.item?.code || "-";
-    const itemName = mov.item?.name || "Barang " + itemId;
-    const unitName = mov.item?.unit?.name || "Unit";
-
-    if (existingItem) {
-      existingItem.totalQty += Number(mov.qty);
-      existingItem.transactionCount += 1;
-    } else {
-      entry.items.set(itemId, {
-        itemId,
-        itemCode,
-        itemName,
-        unitName,
-        totalQty: Number(mov.qty),
-        transactionCount: 1,
-      });
-    }
-  }
-
-  // Bentuk array summary terurut berdasarkan total pemakaian terbanyak
   const result: PersonUsageSummary[] = [];
   usageMap.forEach((val, personId) => {
-    const person = personMap.get(personId);
+    const person = entityMap.get(personId);
     if (person) {
-      const itemsBreakdown = Array.from(val.items.values()).sort(
-        (a, b) => b.totalQty - a.totalQty
-      );
+      const itemsBreakdown = Array.from(val.items.values())
+        .filter((i) => i.totalQty > 0)
+        .sort((a, b) => b.totalQty - a.totalQty);
       result.push({
         person,
         totalTransactions: val.totalTransactions,
@@ -161,78 +187,27 @@ export function aggregateUsageByProject(
   }>,
   projects: Project[]
 ): ProjectUsageSummary[] {
-  const projectMap = new Map<string, Project>();
-  projects.forEach((pr) => projectMap.set(pr.id, pr));
-
-  const usageMap = new Map<
-    string,
-    {
-      totalTransactions: number;
-      totalQuantity: number;
-      items: Map<
-        string,
-        {
-          itemId: string;
-          itemCode: string;
-          itemName: string;
-          unitName: string;
-          totalQty: number;
-        }
-      >;
-    }
-  >();
-
-  projects.forEach((pr) => {
-    usageMap.set(pr.id, {
-      totalTransactions: 0,
-      totalQuantity: 0,
-      items: new Map(),
-    });
-  });
-
-  const outMovements = movements.filter((m) => m.type === "OUT" && m.project_id);
-
-  for (const mov of outMovements) {
-    const projectId = mov.project_id!;
-    let entry = usageMap.get(projectId);
-    if (!entry) {
-      entry = { totalTransactions: 0, totalQuantity: 0, items: new Map() };
-      usageMap.set(projectId, entry);
-    }
-
-    entry.totalTransactions += 1;
-    entry.totalQuantity += Number(mov.qty);
-
-    const itemId = mov.item_id;
-    const existing = entry.items.get(itemId);
-    const itemCode = mov.item?.code || "-";
-    const itemName = mov.item?.name || "Barang";
-    const unitName = mov.item?.unit?.name || "Unit";
-
-    if (existing) {
-      existing.totalQty += Number(mov.qty);
-    } else {
-      entry.items.set(itemId, {
-        itemId,
-        itemCode,
-        itemName,
-        unitName,
-        totalQty: Number(mov.qty),
-      });
-    }
-  }
+  const { entityMap, usageMap } = aggregateUsageByKey(movements, projects, (m) => m.project_id);
 
   const result: ProjectUsageSummary[] = [];
   usageMap.forEach((val, projectId) => {
-    const project = projectMap.get(projectId);
+    const project = entityMap.get(projectId);
     if (project) {
+      const itemsBreakdown = Array.from(val.items.values())
+        .filter((i) => i.totalQty > 0)
+        .sort((a, b) => b.totalQty - a.totalQty)
+        .map(({ itemId, itemCode, itemName, unitName, totalQty }) => ({
+          itemId,
+          itemCode,
+          itemName,
+          unitName,
+          totalQty,
+        }));
       result.push({
         project,
         totalTransactions: val.totalTransactions,
         totalQuantity: val.totalQuantity,
-        itemsBreakdown: Array.from(val.items.values()).sort(
-          (a, b) => b.totalQty - a.totalQty
-        ),
+        itemsBreakdown,
       });
     }
   });
@@ -290,7 +265,7 @@ export async function getInventoryReportData() {
     getItems(),
     getPeople(),
     getProjects(),
-    getMovements(500),
+    getMovements(2000),
     getCurrentStockMap(),
   ]);
 
@@ -304,6 +279,7 @@ export async function getInventoryReportData() {
       name: item.name,
       categoryName: item.category?.name || "Lainnya",
       categoryCode: item.category?.code || "-",
+      locationName: item.location?.name || "-",
       unitName: item.unit?.name || "Pcs",
       currentStock,
       minStock: item.min_stock,
@@ -322,13 +298,14 @@ export async function getInventoryReportData() {
 
   // 4. Metrik Ringkasan
   const outMovements = allMovements.filter((m) => m.type === "OUT");
-  const uniquePeopleWithUsage = new Set(outMovements.map((m) => m.person_id).filter(Boolean)).size;
+  const reversedOutCount = allMovements.filter((m) => m.type === "REVERSAL" && Number(m.qty) < 0).length;
+  const activePeopleWithUsage = personUsage.filter((p) => p.totalQuantity > 0).length;
 
   const metrics = calculateInventoryMetrics(
     items,
     stockMap,
-    outMovements.length,
-    uniquePeopleWithUsage
+    Math.max(0, outMovements.length - reversedOutCount),
+    activePeopleWithUsage
   );
 
   return {

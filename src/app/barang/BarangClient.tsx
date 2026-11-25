@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -21,6 +22,9 @@ import {
   Camera,
   Trash2,
   FileSpreadsheet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Loader2,
 } from "lucide-react";
 import type { Item, Category, Unit, Location } from "@/types/inventory";
 import type { StockSummaryItem } from "@/lib/services/reports";
@@ -46,6 +50,7 @@ interface BarangClientProps {
   categories: Category[];
   units?: Unit[];
   locations?: Location[];
+  initialStatusFilter?: "ALL" | "HABIS" | "MENIPIS" | "AMAN";
 }
 
 export function BarangClient({
@@ -53,11 +58,13 @@ export function BarangClient({
   categories,
   units = [],
   locations = [],
+  initialStatusFilter = "ALL",
 }: BarangClientProps) {
   const router = useRouter();
   const [itemsList, setItemsList] = useState<Item[]>(initialItems);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [selectedStatus, setSelectedStatus] = useState<"ALL" | "HABIS" | "MENIPIS" | "AMAN">(initialStatusFilter);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   // State Pengecekan Riwayat Transaksi untuk Barang Terpilih
@@ -74,6 +81,7 @@ export function BarangClient({
   const [newItemUnit, setNewItemUnit] = useState("Pcs");
   const [customUnit, setCustomUnit] = useState("");
   const [newItemMinStock, setNewItemMinStock] = useState("1");
+  const [newItemTargetStock, setNewItemTargetStock] = useState("");
   const [newItemLocation, setNewItemLocation] = useState("");
   const [addError, setAddError] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -86,11 +94,13 @@ export function BarangClient({
   const [editUnit, setEditUnit] = useState("");
   const [editCustomUnit, setEditCustomUnit] = useState("");
   const [editMinStock, setEditMinStock] = useState("1");
+  const [editTargetStock, setEditTargetStock] = useState("0");
   const [editLocation, setEditLocation] = useState("");
   const [editError, setEditError] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResequencing, setIsResequencing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // State Konfirmasi Ubah Kode/Satuan (jika belum ada transaksi)
   const [confirmUnlockCodeUnit, setConfirmUnlockCodeUnit] = useState(false);
@@ -100,10 +110,14 @@ export function BarangClient({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxTitle, setLightboxTitle] = useState<string>("");
 
-  // Sinkronisasi data saat router.refresh()
+  // Sinkronisasi data saat router.refresh() & perubahan filter query URL
   useEffect(() => {
     setItemsList(initialItems);
   }, [initialItems]);
+
+  useEffect(() => {
+    setSelectedStatus(initialStatusFilter);
+  }, [initialStatusFilter]);
 
   // Saat item dipilih, cek apakah sudah memiliki transaksi di stock_movements
   useEffect(() => {
@@ -146,7 +160,21 @@ export function BarangClient({
   const activeItems = useMemo(() => itemsList.filter((i) => i.is_active !== false), [itemsList]);
   const inactiveItems = useMemo(() => itemsList.filter((i) => i.is_active === false), [itemsList]);
 
-  // Filter items berdasarkan kategori dan kata kunci pencarian
+  // Hitung jumlah status stok pada barang aktif di kategori terpilih
+  const statusCounts = useMemo(() => {
+    const base =
+      selectedCategory !== "ALL" && selectedCategory !== "INACTIVE"
+        ? activeItems.filter((item) => item.category?.code === selectedCategory)
+        : activeItems;
+    return {
+      ALL: base.length,
+      HABIS: base.filter((i) => i.stock_status === "HABIS").length,
+      MENIPIS: base.filter((i) => i.stock_status === "MENIPIS").length,
+      AMAN: base.filter((i) => i.stock_status === "AMAN").length,
+    };
+  }, [activeItems, selectedCategory]);
+
+  // Filter items berdasarkan kategori, status stok, dan kata kunci pencarian
   const filteredItems = useMemo(() => {
     let result = itemsList;
 
@@ -158,6 +186,9 @@ export function BarangClient({
       result = activeItems;
       if (selectedCategory !== "ALL") {
         result = result.filter((item) => item.category?.code === selectedCategory);
+      }
+      if (selectedStatus !== "ALL") {
+        result = result.filter((item) => item.stock_status === selectedStatus);
       }
     }
 
@@ -173,7 +204,7 @@ export function BarangClient({
 
     // Urutkan prefix lalu nomor
     return [...result].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-  }, [itemsList, activeItems, inactiveItems, selectedCategory, search]);
+  }, [itemsList, activeItems, inactiveItems, selectedCategory, selectedStatus, search]);
 
   // Chip Filter Kategori Horizontal
   const categoryChips = [
@@ -226,17 +257,25 @@ export function BarangClient({
     setIsAdding(true);
 
     try {
+      const minStockVal = Number(newItemMinStock);
+      const parsedMin = Number.isFinite(minStockVal) && minStockVal >= 0 ? minStockVal : 1;
+      const targetStockVal = newItemTargetStock.trim() !== "" ? Number(newItemTargetStock) : undefined;
+
       const res = await createItemAction({
         name: newItemName.trim(),
         categoryCode: newItemCategory,
         baseUnitName: effectiveUnit,
-        minStock: Number(newItemMinStock) || 1,
+        minStock: parsedMin,
+        targetStock: targetStockVal !== undefined && Number.isFinite(targetStockVal) ? targetStockVal : undefined,
+        defaultLocationId: newItemLocation || null,
       });
 
       if (res.success && res.item) {
         setIsAddModalOpen(false);
         setNewItemName("");
         setNewItemMinStock("1");
+        setNewItemTargetStock("");
+        setNewItemLocation("");
         setCustomUnit("");
         router.refresh();
       } else {
@@ -258,6 +297,7 @@ export function BarangClient({
     setEditUnit(selectedItem.unit?.name || "Pcs");
     setEditCustomUnit("");
     setEditMinStock(String(selectedItem.min_stock || 0));
+    setEditTargetStock(String(selectedItem.target_stock || 0));
     setEditLocation(selectedItem.default_location_id || "");
     setEditError("");
     setConfirmUnlockCodeUnit(false);
@@ -303,6 +343,7 @@ export function BarangClient({
         name: editName.trim(),
         categoryCode: editCategory,
         minStock: Number(editMinStock) || 0,
+        targetStock: Number(editTargetStock) || 0,
         defaultLocationId: editLocation || null,
         code: editCode.trim().toUpperCase(),
         baseUnitName: !itemTxInfo.hasTransactions ? effectiveUnit : undefined,
@@ -377,23 +418,32 @@ export function BarangClient({
     }
   };
 
-  // Ekspor Data Barang yang Difilter ke Excel (Lengkap dengan Foto)
-  const handleExportFilteredToExcel = () => {
-    const exportData: StockSummaryItem[] = filteredItems.map((item) => ({
-      id: item.id,
-      code: item.code,
-      name: item.name,
-      categoryName: item.category?.name || "Lainnya",
-      categoryCode: item.category?.code || "-",
-      unitName: item.unit?.name || "Pcs",
-      currentStock: item.current_qty || 0,
-      minStock: item.min_stock || 0,
-      targetStock: item.target_stock || 0,
-      status: item.stock_status === "HABIS" || item.stock_status === "MENIPIS" ? item.stock_status : "AMAN",
-      kind: item.kind,
-      photo_path: item.photo_path || null,
-    }));
-    exportStockSummaryToExcel(exportData, { generatedBy: "Admin Logistik" });
+  // Ekspor Data Barang yang Difilter ke Excel (Lengkap dengan Foto & Stok Live)
+  const handleExportFilteredToExcel = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const exportData: StockSummaryItem[] = filteredItems.map((item) => ({
+        id: item.id,
+        code: item.code,
+        name: item.name,
+        categoryName: item.category?.name || "Lainnya",
+        categoryCode: item.category?.code || "-",
+        unitName: item.unit?.name || "Pcs",
+        locationName: item.location?.name || "-",
+        currentStock: item.current_qty || 0,
+        minStock: item.min_stock || 0,
+        targetStock: item.target_stock || 0,
+        status: item.stock_status === "HABIS" || item.stock_status === "MENIPIS" ? item.stock_status : "AMAN",
+        kind: item.kind,
+        photo_path: item.photo_path || null,
+      }));
+      await exportStockSummaryToExcel(exportData, { generatedBy: "Admin Logistik" });
+    } catch (err: any) {
+      alert(err?.message || "Gagal mengekspor data barang ke Excel.");
+    } finally {
+      setIsExporting(false);
+    }
   };
   const handleToggleItemStatus = async (item: Item, newStatus: boolean) => {
     const actionLabel = newStatus ? "mengaktifkan kembali" : "menonaktifkan";
@@ -478,12 +528,17 @@ export function BarangClient({
             )}
             <button
               type="button"
+              disabled={isExporting}
               onClick={handleExportFilteredToExcel}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 active:scale-95 text-emerald-800 text-xs font-semibold touch-target transition-all"
-              title="Ekspor daftar barang yang difilter ke Excel lengkap dengan foto"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 active:scale-95 text-emerald-800 text-xs font-semibold touch-target transition-all disabled:opacity-60"
+              title="Ekspor daftar barang yang difilter ke Excel (.xlsx) lengkap dengan foto"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-              <span>Ekspor Excel</span>
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 text-emerald-700 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+              )}
+              <span>{isExporting ? "Menyusun Excel..." : "Ekspor Excel (.xlsx)"}</span>
             </button>
             <button
               type="button"
@@ -558,6 +613,38 @@ export function BarangClient({
             );
           })}
         </div>
+
+        {/* Status Stok Filter Pills */}
+        {selectedCategory !== "INACTIVE" && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 pb-0.5 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+            {(
+              [
+                { key: "ALL", label: "Semua Status", count: statusCounts.ALL, activeCls: "bg-slate-800 text-white border-slate-800", idleCls: "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100" },
+                { key: "HABIS", label: "Habis (0)", count: statusCounts.HABIS, activeCls: "bg-rose-600 text-white border-rose-700", idleCls: "bg-rose-50/70 text-rose-800 border-rose-200 hover:bg-rose-100" },
+                { key: "MENIPIS", label: "Menipis", count: statusCounts.MENIPIS, activeCls: "bg-amber-600 text-white border-amber-700", idleCls: "bg-amber-50/70 text-amber-900 border-amber-200 hover:bg-amber-100" },
+                { key: "AMAN", label: "Stok Aman", count: statusCounts.AMAN, activeCls: "bg-emerald-600 text-white border-emerald-700", idleCls: "bg-emerald-50/70 text-emerald-800 border-emerald-200 hover:bg-emerald-100" },
+              ] as const
+            ).map((pill) => {
+              const active = selectedStatus === pill.key;
+              return (
+                <button
+                  key={pill.key}
+                  type="button"
+                  onClick={() => setSelectedStatus(pill.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border whitespace-nowrap transition-all shrink-0",
+                    active ? pill.activeCls : pill.idleCls
+                  )}
+                >
+                  <span>{pill.label}</span>
+                  <span className={cn("num-mono text-[10px] px-1.5 rounded-full", active ? "bg-white/25" : "bg-white/80")}>
+                    {pill.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Item List Table / Cards */}
@@ -569,98 +656,164 @@ export function BarangClient({
             <p className="text-xs text-slate-400">
               {selectedCategory === "INACTIVE"
                 ? "Tidak ada barang yang sedang dinonaktifkan."
-                : "Coba kata kunci lain atau pilih Semua Kategori."}
+                : "Coba kata kunci lain, pilih Semua Kategori, atau reset filter status stok."}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm">
-              <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-3 px-4">Kode</th>
-                  <th className="py-3 px-4">Nama Barang</th>
-                  <th className="py-3 px-4 hidden md:table-cell">Kategori</th>
-                  <th className="py-3 px-4 hidden sm:table-cell">Jenis</th>
-                  <th className="py-3 px-4 text-center">Satuan</th>
-                  <th className="py-3 px-4 text-center">Min Stok</th>
-                  <th className="py-3 px-4 text-center hidden sm:table-cell">Foto</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-800">
-                {filteredItems.map((item) => (
-                  <tr
+          <>
+            {/* Mobile Card View (< md) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredItems.map((item) => {
+                const qty = item.current_qty ?? 0;
+                const statusBadge =
+                  item.is_active === false
+                    ? { label: "Nonaktif", cls: "bg-rose-100 text-rose-800" }
+                    : item.stock_status === "HABIS"
+                    ? { label: "Habis", cls: "bg-rose-100 text-rose-800" }
+                    : item.stock_status === "MENIPIS"
+                    ? { label: "Menipis", cls: "bg-amber-100 text-amber-900" }
+                    : { label: "Aman", cls: "bg-emerald-50 text-emerald-800" };
+
+                return (
+                  <div
                     key={item.id}
                     onClick={() => setSelectedItem(item)}
                     className={cn(
-                      "cursor-pointer transition-colors touch-target",
-                      item.is_active === false
-                        ? "bg-slate-50/80 hover:bg-slate-100/80 opacity-75"
-                        : "hover:bg-slate-50/80 active:bg-slate-100"
+                      "p-3.5 flex items-center gap-3 cursor-pointer active:bg-slate-50 touch-target transition-colors",
+                      item.is_active === false && "opacity-75 bg-slate-50/70"
                     )}
                   >
-                    <td className="py-3 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <span>{item.code}</span>
-                        {item.is_active === false && (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-rose-100 text-rose-800 font-bold">
-                            Nonaktif
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-medium text-slate-900">
-                      <div>
-                        <span>{item.name}</span>
-                        {item.legacy_code && (
-                          <span className="block text-[11px] text-slate-400 font-mono">
-                            Eks: {item.legacy_code}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 hidden md:table-cell text-slate-600 text-xs">
-                      {item.category?.name || "-"}
-                    </td>
-                    <td className="py-3 px-4 hidden sm:table-cell whitespace-nowrap">
-                      {getKindBadge(item.kind)}
-                    </td>
-                    <td className="py-3 px-4 text-center font-medium text-slate-700">
-                      {item.unit?.name || "-"}
-                    </td>
-                    <td className="py-3 px-4 text-center num-mono font-bold text-slate-700">
-                      {item.min_stock}
-                    </td>
-                    <td className="py-3 px-4 text-center hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                       {item.photo_path ? (
-                        <PhotoThumbnail
-                          photoPath={item.photo_path}
-                          altText={item.name}
-                        />
+                        <PhotoThumbnail photoPath={item.photo_path} altText={item.name} />
                       ) : (
-                        <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 text-slate-400" title="Belum ada foto">
+                        <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-slate-100 text-slate-400">
                           <Camera className="w-4 h-4" />
                         </span>
                       )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {item.is_active !== false ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Aktif</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="num-mono text-[11px] font-bold text-emerald-800">{item.code}</span>
+                        <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0", statusBadge.cls)}>
+                          {statusBadge.label}
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700">
-                          <Archive className="w-3.5 h-3.5" />
-                          <span>Nonaktif</span>
+                      </div>
+                      <div className="font-bold text-xs text-slate-900 truncate mt-0.5">{item.name}</div>
+                      <div className="flex items-center justify-between gap-2 mt-1 text-[11px] text-slate-500">
+                        <span className="truncate">{item.category?.name || "-"}</span>
+                        <span className="num-mono font-bold text-slate-800 shrink-0">
+                          Stok: {qty} {item.unit?.name || ""}
                         </span>
-                      )}
-                    </td>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="py-3 px-4">Kode</th>
+                    <th className="py-3 px-4">Nama Barang</th>
+                    <th className="py-3 px-4">Kategori</th>
+                    <th className="py-3 px-4">Jenis</th>
+                    <th className="py-3 px-4 text-right">Stok / Min</th>
+                    <th className="py-3 px-4 text-center">Foto</th>
+                    <th className="py-3 px-4 text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-800">
+                  {filteredItems.map((item) => {
+                    const qty = item.current_qty ?? 0;
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() => setSelectedItem(item)}
+                        className={cn(
+                          "cursor-pointer transition-colors touch-target",
+                          item.is_active === false
+                            ? "bg-slate-50/80 hover:bg-slate-100/80 opacity-75"
+                            : "hover:bg-slate-50/80 active:bg-slate-100"
+                        )}
+                      >
+                        <td className="py-3 px-4 font-mono font-bold text-emerald-800 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span>{item.code}</span>
+                            {item.is_active === false && (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] bg-rose-100 text-rose-800 font-bold">
+                                Nonaktif
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-900">
+                          <div>
+                            <span>{item.name}</span>
+                            {item.legacy_code && (
+                              <span className="block text-[11px] text-slate-400 font-mono">
+                                Eks: {item.legacy_code}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 text-xs">
+                          {item.category?.name || "-"}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {getKindBadge(item.kind)}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <span className="num-mono font-bold text-slate-900 block">
+                            {qty} {item.unit?.name || ""}
+                          </span>
+                          <span className="num-mono text-[11px] text-slate-400">
+                            Min {item.min_stock} &bull; Target {item.target_stock || 0}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                          {item.photo_path ? (
+                            <PhotoThumbnail
+                              photoPath={item.photo_path}
+                              altText={item.name}
+                            />
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 text-slate-400" title="Belum ada foto">
+                              <Camera className="w-4 h-4" />
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {item.is_active === false ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-rose-700 text-[11px] font-bold">
+                              <Archive className="w-3.5 h-3.5" />
+                              <span>Nonaktif</span>
+                            </span>
+                          ) : item.stock_status === "HABIS" ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold">
+                              Habis
+                            </span>
+                          ) : item.stock_status === "MENIPIS" ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-bold">
+                              Menipis
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Aman</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -710,9 +863,12 @@ export function BarangClient({
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={`${process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qzqrgxkamixxgmggxhuq.supabase.co"}/storage/v1/object/public/proof-photos/${selectedItem.photo_path}`}
+                    src={getItemPhotoPublicUrl(selectedItem.photo_path) || ""}
                     alt={selectedItem.name}
-                    className="w-full aspect-video object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                    className="w-full aspect-video object-contain bg-slate-100 cursor-pointer hover:opacity-95 transition-opacity"
                     onClick={() => {
                       const url = getItemPhotoPublicUrl(selectedItem.photo_path);
                       if (url) {
@@ -747,22 +903,64 @@ export function BarangClient({
 
             <div className="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-100">
               <div>
+                <span className="text-slate-500 block">Stok Saat Ini</span>
+                <span className="font-bold text-slate-900 num-mono">
+                  {selectedItem.current_qty ?? 0} {selectedItem.unit?.name}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Status Stok</span>
+                <span
+                  className={cn(
+                    "font-bold",
+                    selectedItem.stock_status === "HABIS"
+                      ? "text-rose-700"
+                      : selectedItem.stock_status === "MENIPIS"
+                      ? "text-amber-700"
+                      : "text-emerald-700"
+                  )}
+                >
+                  {selectedItem.stock_status || "AMAN"}
+                </span>
+              </div>
+              <div>
                 <span className="text-slate-500 block">Kategori</span>
                 <span className="font-bold text-slate-900">{selectedItem.category?.name}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Satuan Dasar</span>
-                <span className="font-bold text-slate-900">{selectedItem.unit?.name}</span>
+                <span className="text-slate-500 block">Lokasi Rak</span>
+                <span className="font-bold text-slate-900">{selectedItem.location?.name || "-"}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Batas Minimum Stok</span>
-                <span className="font-bold text-slate-900 num-mono">{selectedItem.min_stock} {selectedItem.unit?.name}</span>
+                <span className="text-slate-500 block">Batas Min / Target</span>
+                <span className="font-bold text-slate-900 num-mono">
+                  {selectedItem.min_stock} / {selectedItem.target_stock || 0} {selectedItem.unit?.name}
+                </span>
               </div>
               <div>
                 <span className="text-slate-500 block">Status Operasional</span>
                 <span className="font-bold text-slate-900">{selectedItem.is_active !== false ? "Aktif" : "Nonaktif"}</span>
               </div>
             </div>
+
+            {selectedItem.is_active !== false && (
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href={`/masuk?itemId=${selectedItem.id}`}
+                  className="min-h-[44px] py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 font-bold text-xs touch-target flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <ArrowDownLeft className="w-4 h-4" />
+                  <span>Catat Masuk</span>
+                </Link>
+                <Link
+                  href={`/keluar?itemId=${selectedItem.id}`}
+                  className="min-h-[44px] py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs touch-target flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>Catat Keluar</span>
+                </Link>
+              </div>
+            )}
 
             {/* Tombol Aksi Admin: Ubah Barang & Nonaktifkan/Aktifkan */}
             <div className="space-y-2 pt-1">
@@ -986,16 +1184,30 @@ export function BarangClient({
                 </div>
               )}
 
-              {/* Batas Minimum Stok */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-800">Batas Minimum Stok</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editMinStock}
-                  onChange={(e) => setEditMinStock(e.target.value)}
-                  className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
-                />
+              {/* Batas Minimum Stok & Target Ideal */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Batas Minimum Stok</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editMinStock}
+                    onChange={(e) => setEditMinStock(e.target.value)}
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Target Stok Ideal</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editTargetStock}
+                    onChange={(e) => setEditTargetStock(e.target.value)}
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
+                  />
+                </div>
               </div>
 
               {/* Lokasi Rak Penyimpanan */}
@@ -1196,11 +1408,45 @@ export function BarangClient({
                   <input
                     type="number"
                     min="0"
+                    step="any"
                     value={newItemMinStock}
                     onChange={(e) => setNewItemMinStock(e.target.value)}
                     className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-800">Target Stok Ideal (Opsional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={newItemTargetStock}
+                    onChange={(e) => setNewItemTargetStock(e.target.value)}
+                    placeholder={`Otomatis ${Math.max(2, (Number(newItemMinStock) || 1) * 2)}`}
+                    className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target num-mono"
+                  />
+                </div>
+
+                {locations.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-800">Lokasi Rak Penyimpanan</label>
+                    <select
+                      value={newItemLocation}
+                      onChange={(e) => setNewItemLocation(e.target.value)}
+                      className="w-full min-h-[48px] p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none touch-target"
+                    >
+                      <option value="">Lokasi default...</option>
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {newItemUnit === "CUSTOM" && (

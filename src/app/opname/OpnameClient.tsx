@@ -27,7 +27,10 @@ interface OpnameClientProps {
 export function OpnameClient({ stockTakes, profiles, categories }: OpnameClientProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [sessionName, setSessionName] = useState("Stock Opname November 2026");
+  const [sessionName, setSessionName] = useState(() => {
+    const label = new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+    return `Stock Opname ${label}`;
+  });
   const [starterProfileId, setStarterProfileId] = useState(profiles[0]?.id || "");
   const [scopeCat, setScopeCat] = useState("ALL");
   const [errorMsg, setErrorMsg] = useState("");

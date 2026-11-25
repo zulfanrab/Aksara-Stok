@@ -14,6 +14,8 @@ export interface SubmitCountInput {
   lineId: string;
   countedQty: number;
   countedByPersonId: string;
+  photoPath?: string | null;
+  reason?: string | null;
 }
 
 export interface SubmitRecountInput {
@@ -108,14 +110,23 @@ export async function submitCountLineAction(input: SubmitCountInput) {
 
   const supabase = createAdminClient();
 
+  const updatePayload: Record<string, unknown> = {
+    counted_qty: input.countedQty,
+    counted_by_person_id: input.countedByPersonId,
+    status: "COUNTED",
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.photoPath !== undefined) {
+    updatePayload.photo_path = input.photoPath || null;
+  }
+  if (input.reason !== undefined) {
+    updatePayload.reason = input.reason?.trim() || null;
+  }
+
   const { error } = await supabase
     .from("stock_take_lines")
-    .update({
-      counted_qty: input.countedQty,
-      counted_by_person_id: input.countedByPersonId,
-      status: "COUNTED",
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", input.lineId);
 
   if (error) {
@@ -123,6 +134,50 @@ export async function submitCountLineAction(input: SubmitCountInput) {
     return { success: false, error: error.message };
   }
 
+  return { success: true };
+}
+
+/**
+ * Mengubah status sesi opname dari COUNTING ke REVIEW secara eksplisit
+ */
+export async function markStockTakeReviewAction(stockTakeId: string) {
+  if (!stockTakeId) {
+    return { success: false, error: "ID sesi opname tidak valid." };
+  }
+
+  const supabase = createAdminClient();
+  const { data: lines, error: linesErr } = await supabase
+    .from("stock_take_lines")
+    .select("id, counted_qty, recount_qty")
+    .eq("stock_take_id", stockTakeId);
+
+  if (linesErr) {
+    return { success: false, error: linesErr.message };
+  }
+
+  const uncounted = (lines || []).filter(
+    (l) => l.counted_qty === null && l.recount_qty === null
+  ).length;
+
+  if (uncounted > 0) {
+    return {
+      success: false,
+      error: `Masih ada ${uncounted} barang yang belum dihitung fisik. Lengkapi semua hitungan sebelum lanjut ke Review.`,
+    };
+  }
+
+  const { error } = await supabase
+    .from("stock_takes")
+    .update({ status: "REVIEW", updated_at: new Date().toISOString() })
+    .eq("id", stockTakeId)
+    .in("status", ["DRAFT", "COUNTING"]);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/opname/${stockTakeId}`);
+  revalidatePath("/opname");
   return { success: true };
 }
 
@@ -162,8 +217,10 @@ export async function submitRecountLineAction(input: SubmitRecountInput) {
 
 /**
  * Mengesahkan sesi opname (Approval)
- * PENEGAKAN ATURAN: Trigger Postgres trg_stock_takes_prevent_self_approval
- * akan melempar EXCEPTION jika approver pernah mencatat hitungan di sesi ini.
+ * PENEGAKAN ATURAN:
+ * 1. Semua item pada sesi harus sudah dihitung fisik.
+ * 2. Trigger Postgres trg_stock_takes_prevent_self_approval
+ *    akan melempar EXCEPTION jika approver pernah mencatat hitungan di sesi ini.
  */
 export async function approveStockTakeAction(input: ApproveStockTakeInput) {
   if (!input.stockTakeId || !input.approvedByProfileId) {
@@ -171,6 +228,26 @@ export async function approveStockTakeAction(input: ApproveStockTakeInput) {
   }
 
   const supabase = createAdminClient();
+
+  const { data: lines, error: linesErr } = await supabase
+    .from("stock_take_lines")
+    .select("id, counted_qty, recount_qty")
+    .eq("stock_take_id", input.stockTakeId);
+
+  if (linesErr) {
+    return { success: false, error: linesErr.message };
+  }
+
+  const uncounted = (lines || []).filter(
+    (l) => l.counted_qty === null && l.recount_qty === null
+  ).length;
+
+  if (uncounted > 0) {
+    return {
+      success: false,
+      error: `Masih ada ${uncounted} barang yang belum dihitung fisik! Selesaikan penghitungan terlebih dahulu agar stok tidak ter-nolkan secara tidak sengaja.`,
+    };
+  }
 
   const { error } = await supabase
     .from("stock_takes")
@@ -221,9 +298,20 @@ export async function postStockTakeAction(input: PostStockTakeInput) {
     return { success: false, error: "Gagal memuat baris hitungan opname." };
   }
 
-  // 2. Buat mutasi ADJUST untuk setiap baris yang memiliki selisih fisik
+  const uncounted = lines.filter((l) => l.recount_qty === null && l.counted_qty === null);
+  if (uncounted.length > 0) {
+    return {
+      success: false,
+      error: `Pembukuan ditolak: masih ada ${uncounted.length} baris yang belum dihitung fisik.`,
+    };
+  }
+
+  // 2. Buat mutasi ADJUST untuk setiap baris yang sudah dihitung dan memiliki selisih fisik
   const adjustments = [];
   for (const line of lines) {
+    if (line.recount_qty === null && line.counted_qty === null) {
+      continue;
+    }
     const finalCount = line.recount_qty !== null ? Number(line.recount_qty) : Number(line.counted_qty);
     const diff = finalCount - Number(line.system_qty);
 
@@ -264,9 +352,14 @@ export async function postStockTakeAction(input: PostStockTakeInput) {
   }
 
   revalidatePath(`/opname/${input.stockTakeId}`);
+  revalidatePath(`/opname/${input.stockTakeId}/berita-acara`);
   revalidatePath("/opname");
   revalidatePath("/barang");
+  revalidatePath("/keluar");
+  revalidatePath("/masuk");
   revalidatePath("/riwayat");
+  revalidatePath("/laporan");
+  revalidatePath("/laporan/cetak");
   revalidatePath("/");
   return { success: true, adjustmentsCount: adjustments.length };
 }

@@ -1,25 +1,40 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getOutboxCount } from "./db";
+import { useRouter } from "next/navigation";
+import { getPendingOutboxItems, removeOutboxItem, type OutboxRecord } from "./db";
 import { syncOutboxToServer, notifyOutboxChanged } from "./sync";
 
 export interface OfflineSyncState {
   isOnline: boolean;
   pendingCount: number;
+  failedItems: OutboxRecord[];
   isSyncing: boolean;
   triggerSync: () => Promise<void>;
+  dismissOutboxItem: (id: string) => Promise<void>;
 }
 
 export function useOfflineSync(): OfflineSyncState {
+  const router = useRouter();
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [pendingCount, setPendingCount] = useState<number>(0);
+  const [failedItems, setFailedItems] = useState<OutboxRecord[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const refreshCount = useCallback(async () => {
-    const count = await getOutboxCount();
-    setPendingCount(count);
+    const allPending = await getPendingOutboxItems();
+    setPendingCount(allPending.length);
+    setFailedItems(allPending.filter((i) => i.status === "FAILED"));
   }, []);
+
+  const dismissOutboxItem = useCallback(
+    async (id: string) => {
+      await removeOutboxItem(id);
+      notifyOutboxChanged();
+      await refreshCount();
+    },
+    [refreshCount]
+  );
 
   const triggerSync = useCallback(async () => {
     if (typeof window === "undefined" || !navigator.onLine || isSyncing) {
@@ -27,12 +42,15 @@ export function useOfflineSync(): OfflineSyncState {
     }
     setIsSyncing(true);
     try {
-      await syncOutboxToServer();
+      const res = await syncOutboxToServer();
       await refreshCount();
+      if (res.synced > 0) {
+        router.refresh();
+      }
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing, refreshCount]);
+  }, [isSyncing, refreshCount, router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -72,7 +90,9 @@ export function useOfflineSync(): OfflineSyncState {
   return {
     isOnline,
     pendingCount,
+    failedItems,
     isSyncing,
     triggerSync,
+    dismissOutboxItem,
   };
 }

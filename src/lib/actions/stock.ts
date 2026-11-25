@@ -34,6 +34,18 @@ export interface StockInInput {
   occurredAt?: string;
 }
 
+function revalidateInventoryRoutes() {
+  revalidatePath("/");
+  revalidatePath("/barang");
+  revalidatePath("/keluar");
+  revalidatePath("/masuk");
+  revalidatePath("/riwayat");
+  revalidatePath("/laporan");
+  revalidatePath("/laporan/cetak");
+  revalidatePath("/karyawan");
+  revalidatePath("/opname");
+}
+
 export interface StockReversalInput {
   clientUuid: string;
   originalMovementId: string;
@@ -57,7 +69,7 @@ export async function recordStockOutAction(input: StockOutInput) {
 
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase.from("stock_movements").insert({
+  const { error } = await supabase.from("stock_movements").insert({
     id: input.clientUuid,
     item_id: input.itemId,
     type: "OUT",
@@ -71,19 +83,22 @@ export async function recordStockOutAction(input: StockOutInput) {
   });
 
   if (error) {
+    // Idempotensi klien: jika UUID mutasi offline sudah tercatat sebelumnya, anggap sukses
+    if (error.code === "23505") {
+      revalidateInventoryRoutes();
+      return { success: true, movementId: input.clientUuid, deduplicated: true };
+    }
     console.error("Gagal mencatat pengeluaran stok:", error);
     return { success: false, error: error.message };
   }
 
-  revalidatePath("/");
-  revalidatePath("/barang");
-  revalidatePath("/riwayat");
+  revalidateInventoryRoutes();
   return { success: true, movementId: input.clientUuid };
 }
 
 /**
  * Mencatat penerimaan barang (Catat Masuk)
- * Mendukung konversi satuan kemasan dan pencatatan riwayat harga beli
+ * Mendukung konversi satuan kemasan, tautan purchases/nota, dan riwayat harga beli
  */
 export async function recordStockInAction(input: StockInInput) {
   if (!input.clientUuid) {
@@ -94,8 +109,49 @@ export async function recordStockInAction(input: StockInInput) {
   }
 
   const supabase = createAdminClient();
+  const occurredIso = input.occurredAt || new Date().toISOString();
 
-  // 1. Catat ke stock_movements (Append-Only)
+  // Cek idempotensi UUID terlebih dahulu agar tidak menduplikasi tabel purchases/price_history
+  const { data: existingMov } = await supabase
+    .from("stock_movements")
+    .select("id")
+    .eq("id", input.clientUuid)
+    .maybeSingle();
+
+  if (existingMov) {
+    revalidateInventoryRoutes();
+    return { success: true, movementId: input.clientUuid, deduplicated: true };
+  }
+
+  // 1. Catat di tabel purchases & purchase_lines terlebih dahulu jika ada supplier, invoice, foto nota, atau harga
+  let purchaseId: string | null = null;
+  if (input.supplier || input.invoiceNo || input.receiptPath || (input.unitPrice && input.unitPrice > 0)) {
+    const { data: purchaseRow } = await supabase
+      .from("purchases")
+      .insert({
+        supplier: input.supplier || "Supplier Umum",
+        invoice_no: input.invoiceNo || null,
+        receipt_path: input.receiptPath || null,
+        purchased_at: occurredIso.split("T")[0],
+      })
+      .select("id")
+      .single();
+
+    if (purchaseRow?.id) {
+      purchaseId = purchaseRow.id;
+      const safeBuyQty = input.qtyBuy > 0 ? input.qtyBuy : input.qtyBase;
+      await supabase.from("purchase_lines").insert({
+        purchase_id: purchaseId,
+        item_id: input.itemId,
+        qty_buy: safeBuyQty,
+        buy_unit_id: input.buyUnitId,
+        qty_base: input.qtyBase,
+        unit_price: input.unitPrice && input.unitPrice > 0 ? input.unitPrice : 0,
+      });
+    }
+  }
+
+  // 2. Catat ke stock_movements (Append-Only) dengan ref_id menunjuk ke purchases
   const { error: movError } = await supabase.from("stock_movements").insert({
     id: input.clientUuid,
     item_id: input.itemId,
@@ -103,40 +159,33 @@ export async function recordStockInAction(input: StockInInput) {
     qty: input.qtyBase,
     location_id: input.locationId || null,
     ref_type: "PURCHASE",
+    ref_id: purchaseId,
     note: input.note || (input.supplier ? `Pembelian dari ${input.supplier}` : null),
-    occurred_at: input.occurredAt || new Date().toISOString(),
+    occurred_at: occurredIso,
   });
 
   if (movError) {
+    if (movError.code === "23505") {
+      revalidateInventoryRoutes();
+      return { success: true, movementId: input.clientUuid, deduplicated: true };
+    }
     console.error("Gagal mencatat penerimaan stok:", movError);
     return { success: false, error: movError.message };
   }
 
-  // 2. Jika ada harga beli, simpan ke price_history
+  // 3. Jika ada harga beli, simpan ke price_history
   if (input.unitPrice && input.unitPrice > 0) {
-    // Hitung harga per satuan dasar
-    const unitPriceBase = (input.unitPrice * input.qtyBuy) / input.qtyBase;
+    const safeBuyQty = input.qtyBuy > 0 ? input.qtyBuy : input.qtyBase;
+    const unitPriceBase = (input.unitPrice * safeBuyQty) / input.qtyBase;
     await supabase.from("price_history").insert({
       item_id: input.itemId,
       unit_price_base: unitPriceBase,
       source: input.supplier ? `Pembelian dari ${input.supplier}` : "Penerimaan Barang",
-      effective_date: (input.occurredAt || new Date().toISOString()).split("T")[0],
+      effective_date: occurredIso.split("T")[0],
     });
   }
 
-  // 3. Catat di tabel purchases jika ada supplier, invoice, atau foto nota
-  if (input.supplier || input.invoiceNo || input.receiptPath) {
-    await supabase.from("purchases").insert({
-      supplier: input.supplier || "Supplier Umum",
-      invoice_no: input.invoiceNo || null,
-      receipt_path: input.receiptPath || null,
-      purchased_at: (input.occurredAt || new Date().toISOString()).split("T")[0],
-    });
-  }
-
-  revalidatePath("/");
-  revalidatePath("/barang");
-  revalidatePath("/riwayat");
+  revalidateInventoryRoutes();
   return { success: true, movementId: input.clientUuid };
 }
 
@@ -169,9 +218,24 @@ export async function recordStockReversalAction(input: StockReversalInput) {
     return { success: false, error: "Transaksi pembalik tidak dapat dibalikkan kembali." };
   }
 
+  // Cegah koreksi ganda pada transaksi yang sudah pernah dibalikkan
+  const { data: existingReversal } = await supabase
+    .from("stock_movements")
+    .select("id")
+    .eq("type", "REVERSAL")
+    .eq("ref_id", original.id)
+    .maybeSingle();
+
+  if (existingReversal) {
+    return {
+      success: false,
+      error: "Transaksi ini sudah pernah dikoreksi/dibalikkan sebelumnya.",
+    };
+  }
+
   // Hitung kuantitas pembalik:
-  // Rumus saldo: IN (+qty), OUT (-qty), REVERSAL (-qty)
-  // Untuk membatalkan IN (+qty): butuh REVERSAL dengan qty positif (+qty) -> net = 0
+  // Rumus saldo: IN (+qty), OUT (-qty), ADJUST (+qty), REVERSAL (-qty)
+  // Untuk membatalkan IN (+qty) / ADJUST (+qty): butuh REVERSAL dengan qty positif (+qty) -> net = 0
   // Untuk membatalkan OUT (-qty): butuh REVERSAL dengan qty negatif (-qty) -> -(-qty) = +qty -> net = 0
   const reversalQty = original.type === "OUT" ? -Number(original.qty) : Number(original.qty);
 
@@ -190,13 +254,15 @@ export async function recordStockReversalAction(input: StockReversalInput) {
   });
 
   if (insertError) {
+    if (insertError.code === "23505") {
+      revalidateInventoryRoutes();
+      return { success: true, movementId: input.clientUuid };
+    }
     console.error("Gagal membuat transaksi pembalik:", insertError);
     return { success: false, error: insertError.message };
   }
 
-  revalidatePath("/");
-  revalidatePath("/barang");
-  revalidatePath("/riwayat");
+  revalidateInventoryRoutes();
   return { success: true, movementId: input.clientUuid };
 }
 
@@ -206,6 +272,7 @@ export interface CreateItemInput {
   baseUnitName: string;
   minStock?: number;
   targetStock?: number;
+  defaultLocationId?: string | null;
   kind?: "CONSUMABLE" | "PPE" | "INSTRUMENT" | "SERVICE";
 }
 
@@ -280,9 +347,12 @@ export async function createItemAction(input: CreateItemInput): Promise<{
     unit = newUnit;
   }
 
-  // 3. Default lokasi
-  const { data: locs } = await supabase.from("locations").select("id").limit(1);
-  const defaultLocationId = locs && locs[0] ? locs[0].id : null;
+  // 3. Default lokasi (pakai pilihan user jika ada, atau fallback ke lokasi pertama)
+  let defaultLocationId = input.defaultLocationId || null;
+  if (!defaultLocationId) {
+    const { data: locs } = await supabase.from("locations").select("id").limit(1);
+    defaultLocationId = locs && locs[0] ? locs[0].id : null;
+  }
 
   // 4. Retry loop untuk konkurensi (hingga 3x jika terjadi unique constraint conflict)
   const prefix = cat.code;
@@ -362,11 +432,7 @@ export async function createItemAction(input: CreateItemInput): Promise<{
     console.warn("Gagal mencatat audit log:", err);
   }
 
-  revalidatePath("/barang");
-  revalidatePath("/");
-  revalidatePath("/keluar");
-  revalidatePath("/masuk");
-  revalidatePath("/opname");
+  revalidateInventoryRoutes();
 
   return { success: true, item: newItem };
 }
@@ -571,6 +637,18 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
   }
 
   // 8. Eksekusi Update
+  const targetStockToSave =
+    input.targetStock !== undefined
+      ? Number(input.targetStock)
+      : oldItem.target_stock !== undefined && oldItem.target_stock !== null
+      ? Number(oldItem.target_stock)
+      : Number(input.minStock || 0) * 2;
+
+  const locationToSave =
+    input.defaultLocationId !== undefined
+      ? input.defaultLocationId || null
+      : oldItem.default_location_id;
+
   const { error: updateErr } = await supabase
     .from("items")
     .update({
@@ -580,8 +658,8 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
       base_unit_id: baseUnitId,
       code: finalCode,
       min_stock: Number(input.minStock || 0),
-      target_stock: input.targetStock !== undefined ? Number(input.targetStock) : Number(input.minStock || 0) * 2,
-      default_location_id: input.defaultLocationId || oldItem.default_location_id,
+      target_stock: targetStockToSave,
+      default_location_id: locationToSave,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.itemId);
@@ -620,11 +698,7 @@ export async function updateItemAction(input: UpdateItemInput): Promise<{
     }
   }
 
-  revalidatePath("/barang");
-  revalidatePath("/");
-  revalidatePath("/keluar");
-  revalidatePath("/masuk");
-  revalidatePath("/opname");
+  revalidateInventoryRoutes();
 
   return { success: true };
 }
@@ -707,12 +781,7 @@ export async function resequenceCategoryCodes(
 export async function manualResequenceCategoryAction(categoryCode: string) {
   const res = await resequenceCategoryCodes(categoryCode);
   if (res.success) {
-    revalidatePath("/barang");
-    revalidatePath("/");
-    revalidatePath("/keluar");
-    revalidatePath("/masuk");
-    revalidatePath("/opname");
-    revalidatePath("/riwayat");
+    revalidateInventoryRoutes();
   }
   return res;
 }
@@ -828,13 +897,7 @@ export async function deleteItemAction(input: { itemId: string }): Promise<{
     }
   }
 
-  revalidatePath("/barang");
-  revalidatePath("/");
-  revalidatePath("/keluar");
-  revalidatePath("/masuk");
-  revalidatePath("/opname");
-  revalidatePath("/riwayat");
-  revalidatePath("/laporan");
+  revalidateInventoryRoutes();
 
   return {
     success: true,
@@ -892,11 +955,7 @@ export async function toggleItemActiveAction(
     console.warn("Gagal mencatat audit log:", err);
   }
 
-  revalidatePath("/barang");
-  revalidatePath("/");
-  revalidatePath("/keluar");
-  revalidatePath("/masuk");
-  revalidatePath("/opname");
+  revalidateInventoryRoutes();
 
   return { success: true };
 }
@@ -917,5 +976,94 @@ export async function checkItemTransactionsAction(itemId: string): Promise<{
   return {
     hasTransactions: (count || 0) > 0,
     transactionCount: count || 0,
+  };
+}
+
+/**
+ * Menambahkan atau memperbarui aturan konversi satuan kemasan untuk suatu barang
+ * (misal: 1 Box = 12 Pcs atau 1 Dus = 24 Pcs)
+ */
+export async function saveUnitConversionAction(input: {
+  itemId: string;
+  fromUnitName: string;
+  factor: number;
+}): Promise<{
+  success: boolean;
+  error?: string;
+  conversion?: {
+    id: string;
+    item_id: string;
+    from_unit_id: string;
+    to_unit_id: string;
+    factor: number;
+    from_unit: { id: string; name: string };
+    to_unit: { id: string; name: string } | null;
+  };
+}> {
+  if (!input.itemId || !input.fromUnitName?.trim() || !input.factor || input.factor <= 0) {
+    return { success: false, error: "Nama kemasan dan faktor konversi (> 0) wajib diisi." };
+  }
+
+  const supabase = createAdminClient();
+
+  const { data: item } = await supabase
+    .from("items")
+    .select("id, base_unit_id, unit:units(id, name)")
+    .eq("id", input.itemId)
+    .single();
+
+  if (!item) {
+    return { success: false, error: "Barang tidak ditemukan." };
+  }
+
+  let { data: fromUnit } = await supabase
+    .from("units")
+    .select("id, name")
+    .ilike("name", input.fromUnitName.trim())
+    .maybeSingle();
+
+  if (!fromUnit) {
+    const { data: createdUnit, error: uErr } = await supabase
+      .from("units")
+      .insert({ name: input.fromUnitName.trim() })
+      .select("id, name")
+      .single();
+    if (uErr || !createdUnit) {
+      return { success: false, error: uErr?.message || "Gagal membuat satuan baru." };
+    }
+    fromUnit = createdUnit;
+  }
+
+  if (fromUnit.id === item.base_unit_id) {
+    return { success: false, error: "Satuan kemasan harus berbeda dari satuan dasar barang." };
+  }
+
+  const { data: conv, error: convErr } = await supabase
+    .from("unit_conversions")
+    .upsert(
+      {
+        item_id: input.itemId,
+        from_unit_id: fromUnit.id,
+        to_unit_id: item.base_unit_id,
+        factor: input.factor,
+      },
+      { onConflict: "item_id,from_unit_id,to_unit_id" }
+    )
+    .select("id, item_id, from_unit_id, to_unit_id, factor")
+    .single();
+
+  if (convErr || !conv) {
+    return { success: false, error: convErr?.message || "Gagal menyimpan konversi satuan." };
+  }
+
+  revalidatePath("/masuk");
+  return {
+    success: true,
+    conversion: {
+      ...conv,
+      factor: Number(conv.factor),
+      from_unit: fromUnit,
+      to_unit: (item.unit as unknown as { id: string; name: string } | null) || null,
+    },
   };
 }

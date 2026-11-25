@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getStockTakes, getProfiles, getCategories } from "@/lib/services/inventory";
 import { OpnameClient } from "./OpnameClient";
 import { Navbar } from "@/components/layout/Navbar";
@@ -9,6 +10,7 @@ export const metadata = {
 };
 
 export default async function OpnamePage() {
+  await connection();
   const [stockTakes, profiles, categories] = await Promise.all([
     getStockTakes(),
     getProfiles(),

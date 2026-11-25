@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Printer, CheckCircle2, ShieldCheck } from "lucide-react";
 import type { StockTakeWithDetails, StockTakeLineWithItem } from "@/lib/services/inventory";
+import { getItemPhotoPublicUrl } from "@/lib/storage";
 
 interface BeritaAcaraClientProps {
   stockTake: StockTakeWithDetails;
@@ -10,12 +11,14 @@ interface BeritaAcaraClientProps {
 }
 
 export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) {
-  const discrepancyLines = lines.filter((l) => {
+  const countedLines = lines.filter((l) => l.counted_qty !== null || l.recount_qty !== null);
+
+  const discrepancyLines = countedLines.filter((l) => {
     const finalCount = l.recount_qty !== null ? Number(l.recount_qty) : Number(l.counted_qty || 0);
     return finalCount - Number(l.system_qty) !== 0;
   });
 
-  const matchingLinesCount = lines.filter((l) => {
+  const matchingLinesCount = countedLines.filter((l) => {
     const finalCount = l.recount_qty !== null ? Number(l.recount_qty) : Number(l.counted_qty || 0);
     return finalCount - Number(l.system_qty) === 0;
   }).length;
@@ -66,7 +69,7 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3.5">
               <img
-                src="/logo.png"
+                src="/logo.webp"
                 alt="Logo Aksara Stok"
                 className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200"
               />
@@ -142,6 +145,7 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 border-b border-slate-200 font-bold text-slate-700 uppercase">
                   <tr>
+                    <th className="py-2 px-2 text-center w-20">Foto Bukti</th>
                     <th className="py-2 px-3">Kode</th>
                     <th className="py-2 px-3">Nama Barang</th>
                     <th className="py-2 px-2 text-center">Satuan</th>
@@ -156,17 +160,29 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
                     const finalCount =
                       line.recount_qty !== null ? Number(line.recount_qty) : Number(line.counted_qty || 0);
                     const diff = finalCount - Number(line.system_qty);
+                    const proofUrl = getItemPhotoPublicUrl(line.photo_path || line.item?.photo_path);
                     return (
                       <tr key={line.id} className="text-slate-800">
-                        <td className="py-2 px-3 font-mono font-bold">{line.item?.code}</td>
-                        <td className="py-2 px-3 font-medium">{line.item?.name}</td>
-                        <td className="py-2 px-2 text-center text-slate-600">{line.item?.unit?.name}</td>
-                        <td className="py-2 px-2 text-right font-mono">{line.system_qty}</td>
-                        <td className="py-2 px-2 text-right font-mono font-bold">{finalCount}</td>
-                        <td className="py-2 px-2 text-right font-mono font-bold">
+                        <td className="py-1.5 px-2 text-center align-middle">
+                          {proofUrl ? (
+                            <img
+                              src={proofUrl}
+                              alt={`Bukti ${line.item?.name}`}
+                              className="w-16 h-16 object-contain bg-white rounded border border-slate-200 mx-auto p-0.5"
+                            />
+                          ) : (
+                            <span className="text-[10px] text-slate-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold align-middle">{line.item?.code}</td>
+                        <td className="py-2 px-3 font-medium align-middle">{line.item?.name}</td>
+                        <td className="py-2 px-2 text-center text-slate-600 align-middle">{line.item?.unit?.name}</td>
+                        <td className="py-2 px-2 text-right font-mono align-middle">{line.system_qty}</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold align-middle">{finalCount}</td>
+                        <td className="py-2 px-2 text-right font-mono font-bold align-middle">
                           {diff > 0 ? `+${diff}` : diff}
                         </td>
-                        <td className="py-2 px-3 text-slate-600 italic">
+                        <td className="py-2 px-3 text-slate-600 italic align-middle">
                           {line.reason || "Penyesuaian hasil audit fisik"}
                         </td>
                       </tr>
@@ -219,8 +235,12 @@ export function BeritaAcaraClient({ stockTake, lines }: BeritaAcaraClientProps) 
               <span className="text-[11px] text-slate-400">Direksi Perusahaan</span>
             </div>
             <div>
-              <div className="font-bold underline text-slate-900">Habsi Gufira P., S.AP.</div>
-              <div className="text-[11px] text-slate-500">Direktur Utama</div>
+              <div className="font-bold underline text-slate-900">
+                {stockTake.approver?.full_name || "Habsi Gufira P., S.AP."}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {stockTake.approver ? "Penyetuju Sesi Opname" : "Direktur Utama"}
+              </div>
             </div>
           </div>
         </div>

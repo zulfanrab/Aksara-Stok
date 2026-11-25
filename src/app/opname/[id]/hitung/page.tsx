@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { getStockTakeById, getPeople } from "@/lib/services/inventory";
 import { HitungClient } from "./HitungClient";
@@ -14,6 +15,7 @@ export default async function HitungPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await connection();
   const { id } = await params;
   const [{ stockTake, lines }, people] = await Promise.all([
     getStockTakeById(id),

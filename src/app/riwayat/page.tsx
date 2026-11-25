@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getMovements } from "@/lib/services/inventory";
 import { RiwayatClient } from "./RiwayatClient";
 import { Navbar } from "@/components/layout/Navbar";
@@ -9,6 +10,7 @@ export const metadata = {
 };
 
 export default async function RiwayatPage() {
+  await connection();
   const movements = await getMovements(100);
 
   return (

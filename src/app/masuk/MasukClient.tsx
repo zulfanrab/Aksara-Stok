@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Plus,
@@ -22,7 +23,8 @@ import {
 import Link from "next/link";
 import type { Item, Unit } from "@/types/inventory";
 import type { UnitConversion } from "@/lib/services/inventory";
-import { recordStockInAction } from "@/lib/actions/stock";
+import { recordStockInAction, saveUnitConversionAction } from "@/lib/actions/stock";
+import { roundPrecision } from "@/lib/stock-logic";
 import { enqueueOutboxItem, setCachedMasterData, getCachedMasterData } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync";
 import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
@@ -35,24 +37,31 @@ interface MasukClientProps {
   items: Item[];
   units: Unit[];
   conversions: UnitConversion[];
+  initialItemId?: string;
 }
 
 export function MasukClient({
   items: initialItems,
   units: initialUnits,
   conversions: initialConversions,
+  initialItemId = "",
 }: MasukClientProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [items, setItems] = useState<Item[]>(initialItems);
   const [units, setUnits] = useState<Unit[]>(initialUnits);
   const [conversions, setConversions] = useState<UnitConversion[]>(initialConversions);
 
-  const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [selectedItemId, setSelectedItemId] = useState<string>(initialItemId);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchItem, setSearchItem] = useState<string>("");
   const [qtyBuy, setQtyBuy] = useState<number>(1);
   const [selectedBuyUnitId, setSelectedBuyUnitId] = useState<string>("");
+  const [showConvForm, setShowConvForm] = useState<boolean>(false);
+  const [convUnitName, setConvUnitName] = useState<string>("");
+  const [convFactor, setConvFactor] = useState<string>("12");
+  const [isSavingConv, setIsSavingConv] = useState<boolean>(false);
   const [unitPrice, setUnitPrice] = useState<string>("");
   const [supplier, setSupplier] = useState<string>("");
   const [invoiceNo, setInvoiceNo] = useState<string>("");
@@ -73,6 +82,14 @@ export function MasukClient({
     totalPrice?: number;
     isOffline?: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    if (initialItemId) {
+      setSelectedItemId(initialItemId);
+      const found = items.find((i) => i.id === initialItemId);
+      if (found) setSelectedBuyUnitId(found.base_unit_id);
+    }
+  }, [initialItemId, items]);
 
   // Cache master data ke IndexedDB saat online
   useEffect(() => {
@@ -124,7 +141,7 @@ export function MasukClient({
   }, [selectedItem, activeBuyUnitId, availableConversions]);
 
   // Kuantitas dasar terhitung
-  const qtyBase = qtyBuy * conversionFactor;
+  const qtyBase = roundPrecision(qtyBuy * conversionFactor);
 
   // Nama satuan beli
   const buyUnitName =
@@ -259,6 +276,7 @@ export function MasukClient({
           setInvoiceNo("");
           setNote("");
           setReceiptPhotoPath("");
+          router.refresh();
         } else {
           setErrorMsg(res.error || "Gagal mencatat penerimaan barang.");
         }
@@ -497,6 +515,9 @@ export function MasukClient({
                             <img
                               src={photoUrl}
                               alt={item.name}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
                               className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
                             />
                           ) : (
@@ -594,26 +615,31 @@ export function MasukClient({
                 <div className="flex items-center bg-slate-50 rounded-2xl border border-slate-200 p-1">
                   <button
                     type="button"
-                    onClick={() => setQtyBuy((prev) => Math.max(1, prev - 1))}
+                    onClick={() =>
+                      setQtyBuy((prev) =>
+                        prev > 1 ? Number((prev - 1).toFixed(4)) : Number(Math.max(0.1, prev - 0.5).toFixed(2))
+                      )
+                    }
                     className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 touch-target active:scale-95 shadow-2xs"
-                    aria-label="Kurangi 1"
+                    aria-label="Kurangi"
                   >
                     <Minus className="w-5 h-5 stroke-[2.5]" />
                   </button>
                   <input
                     type="number"
-                    inputMode="numeric"
-                    min="1"
+                    inputMode="decimal"
+                    min="0.01"
+                    step="any"
                     value={qtyBuy}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      setQtyBuy(isNaN(val) ? 1 : Math.max(1, val));
+                      const val = parseFloat(e.target.value);
+                      setQtyBuy(isNaN(val) ? 1 : Math.max(0.01, val));
                     }}
                     className="flex-1 text-center font-extrabold text-2xl text-slate-900 bg-transparent focus:outline-none num-mono"
                   />
                   <button
                     type="button"
-                    onClick={() => setQtyBuy((prev) => prev + 1)}
+                    onClick={() => setQtyBuy((prev) => Number((prev + 1).toFixed(4)))}
                     className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 touch-target active:scale-95 shadow-2xs"
                     aria-label="Tambah 1"
                   >
@@ -623,9 +649,18 @@ export function MasukClient({
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-900 block mb-1">
-                  Satuan Beli / Kemasan
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-900 block">
+                    Satuan Beli / Kemasan
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowConvForm((prev) => !prev)}
+                    className="text-[11px] font-bold text-emerald-700 hover:underline"
+                  >
+                    {showConvForm ? "Tutup" : "+ Tambah Kemasan"}
+                  </button>
+                </div>
                 <select
                   value={activeBuyUnitId}
                   onChange={(e) => setSelectedBuyUnitId(e.target.value)}
@@ -643,13 +678,84 @@ export function MasukClient({
               </div>
             </div>
 
+            {showConvForm && (
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 animate-in fade-in">
+                <div className="text-[11px] font-bold text-slate-800">
+                  Buat Aturan Kemasan Baru untuk {selectedItem.name}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={convUnitName}
+                    onChange={(e) => setConvUnitName(e.target.value)}
+                    placeholder="Nama kemasan (Dus, Box, Rim)"
+                    className="px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-900"
+                  />
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="any"
+                    value={convFactor}
+                    onChange={(e) => setConvFactor(e.target.value)}
+                    placeholder={`Isi per kemasan (${baseUnitName})`}
+                    className="px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs num-mono text-slate-900"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-500">
+                    1 {convUnitName || "Kemasan"} = {Number(convFactor) || 0} {baseUnitName}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isSavingConv || !convUnitName.trim() || !(Number(convFactor) > 0)}
+                    onClick={async () => {
+                      setIsSavingConv(true);
+                      setErrorMsg("");
+                      try {
+                        const res = await saveUnitConversionAction({
+                          itemId: selectedItem.id,
+                          fromUnitName: convUnitName.trim(),
+                          factor: Number(convFactor),
+                        });
+                        if (res.success && res.conversion) {
+                          const saved = res.conversion;
+                          setUnits((prev) =>
+                            prev.some((u) => u.id === saved.from_unit.id) ? prev : [...prev, saved.from_unit]
+                          );
+                          setConversions((prev) => {
+                            const others = prev.filter((c) => c.id !== saved.id);
+                            return [...others, saved];
+                          });
+                          setSelectedBuyUnitId(saved.from_unit_id);
+                          setConvUnitName("");
+                          setShowConvForm(false);
+                        } else {
+                          setErrorMsg(res.error || "Gagal menambah konversi kemasan.");
+                        }
+                      } finally {
+                        setIsSavingConv(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50"
+                  >
+                    {isSavingConv ? "Menyimpan..." : "Simpan Kemasan"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Quick Chips Tambah Kuantitas */}
             <div className="flex items-center gap-1.5 overflow-x-auto pt-1 no-scrollbar">
-              {[1, 5, 10, 25, 50, 100].map((inc) => (
+              {(["ml", "cm", "gram", "gr", "meter", "m", "liter"].includes(
+                buyUnitName.trim().toLowerCase()
+              )
+                ? [10, 50, 100, 250, 500, 1000]
+                : [1, 5, 10, 25, 50, 100]
+              ).map((inc) => (
                 <button
                   key={inc}
                   type="button"
-                  onClick={() => setQtyBuy((prev) => prev + inc)}
+                  onClick={() => setQtyBuy((prev) => Number((prev + inc).toFixed(4)))}
                   className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-xs font-bold text-slate-700 touch-target active:scale-95 transition-all shadow-2xs"
                 >
                   +{inc}

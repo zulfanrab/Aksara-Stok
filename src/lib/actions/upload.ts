@@ -109,6 +109,11 @@ export async function updateItemPhotoAction(itemId: string, photoPath: string) {
   }
 
   revalidatePath("/barang");
+  revalidatePath("/keluar");
+  revalidatePath("/masuk");
+  revalidatePath("/laporan");
+  revalidatePath("/laporan/cetak");
+  revalidatePath("/opname");
   return { success: true };
 }
 

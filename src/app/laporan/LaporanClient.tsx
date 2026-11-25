@@ -18,9 +18,17 @@ import {
   Download,
   Calendar,
   Layers,
+  Loader2,
 } from "lucide-react";
 import type { StockSummaryItem, PersonUsageSummary, ProjectUsageSummary, InventoryMetrics } from "@/lib/services/reports";
-import { exportStockSummaryToExcel, exportPersonUsageToExcel, exportReportToWord } from "@/lib/reports/export";
+import {
+  exportStockSummaryToExcel,
+  exportPersonUsageToExcel,
+  exportProjectUsageToExcel,
+  exportStockSummaryToWord,
+  exportReportToWord,
+  type ExportProgressInfo,
+} from "@/lib/reports/export";
 import { getItemPhotoPublicUrl } from "@/lib/storage";
 import { ImageLightboxModal } from "@/components/camera/ImageLightboxModal";
 import { cn } from "@/lib/utils";
@@ -42,6 +50,11 @@ export function LaporanClient({ data }: LaporanClientProps) {
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxTitle, setLightboxTitle] = useState<string>("");
+  const [exportProgress, setExportProgress] = useState<{
+    kind: "EXCEL" | "WORD";
+    info: ExportProgressInfo | null;
+  } | null>(null);
+  const [exportError, setExportError] = useState("");
 
   // Daftar kategori unik untuk filter
   const categories = useMemo(() => {
@@ -85,84 +98,111 @@ export function LaporanClient({ data }: LaporanClientProps) {
     });
   }, [data.projectUsage, searchTerm]);
 
-  // Export handlers
-  const handleExportExcel = () => {
+  const cetakHref = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("tab", activeTab.toLowerCase());
     if (activeTab === "STOCK") {
-      exportStockSummaryToExcel(filteredStock);
-    } else if (activeTab === "PEOPLE") {
-      exportPersonUsageToExcel(data.personUsage);
-    } else {
-      // Export Proyek ke Excel
-      const headers = ["No", "Nama Proyek", "Klien", "Total Pengeluaran", "Item Diambil"];
-      const rows = data.projectUsage.map((p, idx) => [
-        String(idx + 1),
-        p.project.name,
-        p.project.client || "-",
-        `${p.totalQuantity} unit`,
-        p.itemsBreakdown.map((i) => `${i.itemName} (${i.totalQty})`).join(", "),
-      ]);
-      exportReportToWord({
-        reportTitle: "Laporan Pemakaian Barang per Proyek",
-        tableHeaders: headers,
-        tableRows: rows,
-      });
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (categoryFilter !== "ALL") params.set("category", categoryFilter);
+    }
+    if (searchTerm.trim()) params.set("q", searchTerm.trim());
+    return `/laporan/cetak?${params.toString()}`;
+  }, [activeTab, statusFilter, categoryFilter, searchTerm]);
+
+  const formatExportLabel = (kind: "EXCEL" | "WORD", idleLabel: string) => {
+    if (!exportProgress || exportProgress.kind !== kind) return idleLabel;
+    const info = exportProgress.info;
+    if (!info) return kind === "EXCEL" ? "Menyusun Excel..." : "Menyusun Word...";
+    if (info.stage === "IMAGES" && info.total > 0) {
+      return `Memuat Foto (${info.loaded}/${info.total})...`;
+    }
+    return kind === "EXCEL" ? "Menyimpan .xlsx..." : "Menyimpan .docx...";
+  };
+
+  // Export handlers (async dengan pembekalan foto resolusi tinggi)
+  const handleExportExcel = async () => {
+    if (exportProgress) return;
+    setExportError("");
+    setExportProgress({ kind: "EXCEL", info: null });
+
+    try {
+      if (activeTab === "STOCK") {
+        await exportStockSummaryToExcel(filteredStock, {
+          generatedBy: "Admin Logistik",
+          onProgress: (info) => setExportProgress({ kind: "EXCEL", info }),
+        });
+      } else if (activeTab === "PEOPLE") {
+        await exportPersonUsageToExcel(filteredPeople, {
+          generatedBy: "Admin Logistik",
+        });
+      } else {
+        await exportProjectUsageToExcel(filteredProjects, {
+          generatedBy: "Admin Logistik",
+        });
+      }
+    } catch (err: any) {
+      setExportError(err?.message || "Gagal mengekspor file Excel (.xlsx).");
+    } finally {
+      setExportProgress(null);
     }
   };
 
-  const handleExportWord = () => {
-    if (activeTab === "STOCK") {
-      const headers = ["No", "Foto", "Kode", "Nama Barang", "Kategori", "Stok", "Satuan", "Status"];
-      const rows = filteredStock.map((i, idx) => {
-        const photoUrl = getItemPhotoPublicUrl(i.photo_path);
-        const photoHtml = photoUrl
-          ? `<img src="${photoUrl}" width="50" height="50" style="object-fit:cover; display:block; margin-bottom:2px;" /><a href="${photoUrl}">Buka Foto</a>`
-          : "-";
+  const handleExportWord = async () => {
+    if (exportProgress) return;
+    setExportError("");
+    setExportProgress({ kind: "WORD", info: null });
 
-        return [
+    try {
+      if (activeTab === "STOCK") {
+        await exportStockSummaryToWord(filteredStock, {
+          generatedBy: "Admin Logistik",
+          approverName: "Habsi Gufira P., S.AP.",
+          onProgress: (info) => setExportProgress({ kind: "WORD", info }),
+        });
+      } else if (activeTab === "PEOPLE") {
+        const headers = ["No", "NIP / Kode", "Nama Karyawan", "Jabatan", "Frekuensi", "Total Kuantitas", "Rincian Barang"];
+        const rows = filteredPeople.map((p, idx) => [
           String(idx + 1),
-          photoHtml,
-          i.code,
-          i.name,
-          i.categoryName,
-          String(i.currentStock),
-          i.unitName,
-          i.status,
-        ];
-      });
-      exportReportToWord({
-        reportTitle: "Laporan Rekapitulasi Stok Inventaris",
-        tableHeaders: headers,
-        tableRows: rows,
-      });
-    } else if (activeTab === "PEOPLE") {
-      const headers = ["No", "NIP / Kode", "Nama Karyawan", "Jabatan", "Frekuensi", "Total Kuantitas"];
-      const rows = data.personUsage.map((p, idx) => [
-        String(idx + 1),
-        p.person.employee_code,
-        p.person.name,
-        p.person.position,
-        `${p.totalTransactions} kali`,
-        `${p.totalQuantity} unit`,
-      ]);
-      exportReportToWord({
-        reportTitle: "Laporan Pemakaian Barang per Pengguna (13 Karyawan)",
-        tableHeaders: headers,
-        tableRows: rows,
-      });
-    } else {
-      const headers = ["No", "Nama Proyek", "Klien", "Total Pemakaian", "Rincian Barang"];
-      const rows = data.projectUsage.map((pr, idx) => [
-        String(idx + 1),
-        pr.project.name,
-        pr.project.client || "-",
-        `${pr.totalQuantity} unit`,
-        pr.itemsBreakdown.map((i) => `${i.itemName} (${i.totalQty})`).join(", "),
-      ]);
-      exportReportToWord({
-        reportTitle: "Laporan Pemakaian Inventaris per Proyek",
-        tableHeaders: headers,
-        tableRows: rows,
-      });
+          p.person.employee_code,
+          p.person.name,
+          p.person.position,
+          `${p.totalTransactions} kali`,
+          `${p.totalQuantity} unit`,
+          p.itemsBreakdown.length === 0
+            ? "-"
+            : p.itemsBreakdown.map((i) => `${i.itemName} (${i.totalQty})`).join(", "),
+        ]);
+        await exportReportToWord({
+          reportTitle: "Laporan Pemakaian Barang per Pengguna",
+          tableHeaders: headers,
+          tableRows: rows,
+          generatedBy: "Admin Logistik",
+          onProgress: (info) => setExportProgress({ kind: "WORD", info }),
+        });
+      } else {
+        const headers = ["No", "Nama Proyek", "Klien", "Frekuensi", "Total Pemakaian", "Rincian Barang"];
+        const rows = filteredProjects.map((pr, idx) => [
+          String(idx + 1),
+          pr.project.name,
+          pr.project.client || "-",
+          `${pr.totalTransactions} kali`,
+          `${pr.totalQuantity} unit`,
+          pr.itemsBreakdown.length === 0
+            ? "-"
+            : pr.itemsBreakdown.map((i) => `${i.itemName} (${i.totalQty})`).join(", "),
+        ]);
+        await exportReportToWord({
+          reportTitle: "Laporan Pemakaian Inventaris per Proyek",
+          tableHeaders: headers,
+          tableRows: rows,
+          generatedBy: "Admin Logistik",
+          onProgress: (info) => setExportProgress({ kind: "WORD", info }),
+        });
+      }
+    } catch (err: any) {
+      setExportError(err?.message || "Gagal mengekspor file Word (.docx).");
+    } finally {
+      setExportProgress(null);
     }
   };
 
@@ -180,30 +220,48 @@ export function LaporanClient({ data }: LaporanClientProps) {
               Rekapitulasi & Analisis Pemakaian
             </h1>
             <p className="text-xs text-[var(--slate-400)] mt-1">
-              Data stok terkini, analisis pemakaian barang, dan ekspor laporan resmi.
+              Data stok terkini, analisis pemakaian barang, dan ekspor laporan resmi (.xlsx, .docx, PDF A4).
             </p>
           </div>
 
           {/* 3 Tombol Ekspor Utama */}
           <div className="flex flex-wrap items-center gap-2">
             <button
+              type="button"
+              disabled={Boolean(exportProgress)}
               onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs touch-target active:scale-95 transition-all"
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs touch-target active:scale-95 transition-all",
+                exportProgress && "opacity-75 cursor-wait"
+              )}
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Ekspor Excel</span>
+              {exportProgress?.kind === "EXCEL" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4" />
+              )}
+              <span>{formatExportLabel("EXCEL", "Ekspor Excel (.xlsx)")}</span>
             </button>
 
             <button
+              type="button"
+              disabled={Boolean(exportProgress)}
               onClick={handleExportWord}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs touch-target active:scale-95 transition-all"
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs touch-target active:scale-95 transition-all",
+                exportProgress && "opacity-75 cursor-wait"
+              )}
             >
-              <FileText className="w-4 h-4" />
-              <span>Ekspor Word</span>
+              {exportProgress?.kind === "WORD" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4" />
+              )}
+              <span>{formatExportLabel("WORD", "Ekspor Word (.docx)")}</span>
             </button>
 
             <Link
-              href={`/laporan/cetak?tab=${activeTab.toLowerCase()}`}
+              href={cetakHref}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs shadow-xs touch-target active:scale-95 transition-all"
             >
               <Printer className="w-4 h-4" />
@@ -211,6 +269,13 @@ export function LaporanClient({ data }: LaporanClientProps) {
             </Link>
           </div>
         </div>
+
+        {exportError && (
+          <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{exportError}</span>
+          </div>
+        )}
 
         {/* 4 Kartu Metrik Ringkasan */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
@@ -352,17 +417,101 @@ export function LaporanClient({ data }: LaporanClientProps) {
       {/* TAB 1: REKAPITULASI STOK TERKINI */}
       {activeTab === "STOCK" && (
         <div className="bg-white rounded-2xl border border-[var(--slate-200)] overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
+          {/* Tampilan Kartu Mobile (< md) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredStock.length === 0 ? (
+              <div className="py-12 px-4 text-center text-slate-400 text-xs">
+                Tidak ada barang yang cocok dengan pencarian.
+              </div>
+            ) : (
+              filteredStock.map((item) => {
+                const restockQty = Math.max(0, Number(item.targetStock || 0) - Number(item.currentStock || 0));
+                return (
+                  <div key={item.id} className="p-3.5 flex items-start gap-3">
+                    {item.photo_path ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = getItemPhotoPublicUrl(item.photo_path);
+                          if (url) {
+                            setLightboxUrl(url);
+                            setLightboxTitle(`${item.name} (${item.code})`);
+                          }
+                        }}
+                        className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white p-0.5 shrink-0"
+                      >
+                        <img
+                          src={getItemPhotoPublicUrl(item.photo_path) || ""}
+                          alt={item.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </button>
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-300 shrink-0">
+                        <Package className="w-5 h-5" />
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="num-mono font-bold text-[11px] text-[var(--emerald-700)] block">
+                            {item.code}
+                          </span>
+                          <h3 className="font-bold text-xs text-[var(--slate-900)] leading-snug">
+                            {item.name}
+                          </h3>
+                          <span className="text-[11px] text-slate-500 block mt-0.5">
+                            {item.categoryName}
+                            {item.locationName ? ` • ${item.locationName}` : ""}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0",
+                            item.status === "AMAN"
+                              ? "bg-[var(--emerald-50)] text-[var(--emerald-700)]"
+                              : item.status === "MENIPIS"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-rose-50 text-rose-700"
+                          )}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100 text-[11px]">
+                        <span className="num-mono font-bold text-slate-900">
+                          Stok: {item.currentStock} {item.unitName}
+                        </span>
+                        <span className="num-mono text-slate-500">
+                          Min {item.minStock} / Target {item.targetStock}
+                        </span>
+                      </div>
+                      {(item.status === "HABIS" || item.status === "MENIPIS") && restockQty > 0 && (
+                        <div className="mt-1 text-[11px] font-semibold text-amber-700">
+                          Saran Beli: +{restockQty} {item.unitName}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Tampilan Tabel Desktop (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-canvas)] border-b border-[var(--slate-200)] text-xs font-bold text-[var(--slate-700)] uppercase">
                 <tr>
-                  <th className="py-3 px-3 text-center w-12">Foto</th>
+                  <th className="py-3 px-3 text-center w-16">Foto</th>
                   <th className="py-3 px-4">Barang</th>
                   <th className="py-3 px-3">Kategori</th>
                   <th className="py-3 px-3 text-right">Stok Terkini</th>
                   <th className="py-3 px-3 text-right">Batas Min</th>
                   <th className="py-3 px-3 text-right">Target</th>
-                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Status & Saran Beli</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--slate-200)] text-xs sm:text-sm">
@@ -373,72 +522,85 @@ export function LaporanClient({ data }: LaporanClientProps) {
                     </td>
                   </tr>
                 ) : (
-                  filteredStock.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2.5 px-3 text-center align-middle">
-                        {item.photo_path ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const url = getItemPhotoPublicUrl(item.photo_path);
-                              if (url) {
-                                setLightboxUrl(url);
-                                setLightboxTitle(`${item.name} (${item.code})`);
-                              }
-                            }}
-                            className="relative block w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shadow-2xs hover:opacity-90 active:scale-95 transition-all mx-auto"
-                            title="Klik untuk memperbesar"
-                          >
-                            <img
-                              src={getItemPhotoPublicUrl(item.photo_path) || ""}
-                              alt={item.name}
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        ) : (
-                          <span className="text-slate-300 text-xs">-</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-[var(--slate-900)]">{item.name}</div>
-                        <span className="num-mono font-bold text-xs text-[var(--emerald-700)]">
-                          {item.code}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-3 text-xs text-[var(--slate-700)]">
-                        {item.categoryName}
-                      </td>
-
-                      <td className="py-3 px-3 text-right num-mono font-bold text-[var(--slate-900)]">
-                        {item.currentStock} {item.unitName}
-                      </td>
-
-                      <td className="py-3 px-3 text-right num-mono text-slate-500">
-                        {item.minStock} {item.unitName}
-                      </td>
-
-                      <td className="py-3 px-3 text-right num-mono text-slate-500">
-                        {item.targetStock} {item.unitName}
-                      </td>
-
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={cn(
-                            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold",
-                            item.status === "AMAN"
-                              ? "bg-[var(--emerald-50)] text-[var(--emerald-700)]"
-                              : item.status === "MENIPIS"
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-rose-50 text-rose-700"
+                  filteredStock.map((item) => {
+                    const restockQty = Math.max(0, Number(item.targetStock || 0) - Number(item.currentStock || 0));
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3 text-center align-middle">
+                          {item.photo_path ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = getItemPhotoPublicUrl(item.photo_path);
+                                if (url) {
+                                  setLightboxUrl(url);
+                                  setLightboxTitle(`${item.name} (${item.code})`);
+                                }
+                              }}
+                              className="relative block w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-white p-0.5 shadow-2xs hover:opacity-90 active:scale-95 transition-all mx-auto"
+                              title="Klik untuk memperbesar"
+                            >
+                              <img
+                                src={getItemPhotoPublicUrl(item.photo_path) || ""}
+                                alt={item.name}
+                                className="w-full h-full object-contain"
+                              />
+                            </button>
+                          ) : (
+                            <span className="text-slate-300 text-xs">-</span>
                           )}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-[var(--slate-900)]">{item.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="num-mono font-bold text-xs text-[var(--emerald-700)]">
+                              {item.code}
+                            </span>
+                            {item.locationName && (
+                              <span className="text-[11px] text-slate-400">&bull; {item.locationName}</span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3 text-xs text-[var(--slate-700)]">
+                          {item.categoryName}
+                        </td>
+
+                        <td className="py-3 px-3 text-right num-mono font-bold text-[var(--slate-900)]">
+                          {item.currentStock} {item.unitName}
+                        </td>
+
+                        <td className="py-3 px-3 text-right num-mono text-slate-500">
+                          {item.minStock} {item.unitName}
+                        </td>
+
+                        <td className="py-3 px-3 text-right num-mono text-slate-500">
+                          {item.targetStock} {item.unitName}
+                        </td>
+
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={cn(
+                              "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold",
+                              item.status === "AMAN"
+                                ? "bg-[var(--emerald-50)] text-[var(--emerald-700)]"
+                                : item.status === "MENIPIS"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-rose-50 text-rose-700"
+                            )}
+                          >
+                            {item.status}
+                          </span>
+                          {(item.status === "HABIS" || item.status === "MENIPIS") && restockQty > 0 && (
+                            <span className="block text-[10px] font-semibold text-amber-700 mt-1 num-mono">
+                              Beli +{restockQty} {item.unitName}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -506,7 +668,38 @@ export function LaporanClient({ data }: LaporanClientProps) {
       {/* TAB 3: PEMAKAIAN PER PROYEK / KLIEN */}
       {activeTab === "PROJECTS" && (
         <div className="bg-white rounded-2xl border border-[var(--slate-200)] overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
+          {/* Tampilan Kartu Mobile (< md) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredProjects.length === 0 ? (
+              <div className="py-12 px-4 text-center text-slate-400 text-xs">
+                Belum ada data pemakaian proyek yang tercatat.
+              </div>
+            ) : (
+              filteredProjects.map((p) => (
+                <div key={p.project.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-xs text-[var(--slate-900)]">{p.project.name}</h3>
+                      <span className="text-[11px] text-slate-500">{p.project.client || "-"}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="num-mono font-bold text-xs text-[var(--emerald-700)] block">
+                        {p.totalQuantity} unit
+                      </span>
+                      <span className="text-[10px] text-slate-500">{p.totalTransactions}x ambil</span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-600 pt-1.5 border-t border-slate-100">
+                    {p.itemsBreakdown.length === 0
+                      ? "Belum ada rincian barang."
+                      : p.itemsBreakdown.map((i) => `${i.itemName} (${i.totalQty} ${i.unitName})`).join(", ")}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--bg-canvas)] border-b border-[var(--slate-200)] text-xs font-bold text-[var(--slate-700)] uppercase">
                 <tr>

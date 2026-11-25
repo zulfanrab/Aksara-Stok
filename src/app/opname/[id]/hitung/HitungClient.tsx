@@ -20,15 +20,21 @@ import {
   Search,
   Camera,
   Package,
+  AlertTriangle,
+  SkipForward,
+  FileText,
 } from "lucide-react";
 import type { StockTakeWithDetails, StockTakeLineWithItem } from "@/lib/services/inventory";
 import type { Person } from "@/types/inventory";
 import { submitCountLineAction } from "@/lib/actions/opname";
+import { updateStockTakeLinePhotoAction } from "@/lib/actions/upload";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync";
+import { roundPrecision } from "@/lib/stock-logic";
 import { OpnameGuideModal } from "@/components/opname/OpnameGuideModal";
 import { getItemPhotoPublicUrl } from "@/lib/storage";
 import { ImageLightboxModal } from "@/components/camera/ImageLightboxModal";
+import { PhotoCaptureModal } from "@/components/camera/PhotoCaptureModal";
 import { cn } from "@/lib/utils";
 
 interface HitungClientProps {
@@ -38,13 +44,19 @@ interface HitungClientProps {
 }
 
 export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [localLines, setLocalLines] = useState(lines);
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const firstUncounted = lines.findIndex((l) => l.counted_qty === null);
+    return firstUncounted >= 0 ? firstUncounted : 0;
+  });
   const [counterPersonId, setCounterPersonId] = useState(people[0]?.id || "");
   const [isPending, startTransition] = useTransition();
-  const [localLines, setLocalLines] = useState(lines);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSearch, setDrawerSearch] = useState("");
   const [drawerFilter, setDrawerFilter] = useState<"ALL" | "UNCOUNTED" | "COUNTED">("ALL");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [lineReason, setLineReason] = useState("");
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxTitle, setLightboxTitle] = useState<string>("");
@@ -63,8 +75,18 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
           ? Number(currentLine.counted_qty)
           : 0
       );
+      setLineReason(currentLine.reason || "");
+      setErrorMsg("");
     }
   }, [currentIndex, currentLine]);
+
+  const findNextTargetIndex = (updatedLines: StockTakeLineWithItem[], fromIdx: number) => {
+    const nextUncountedAfter = updatedLines.findIndex((l, idx) => idx > fromIdx && l.counted_qty === null);
+    if (nextUncountedAfter >= 0) return nextUncountedAfter;
+    const anyUncounted = updatedLines.findIndex((l) => l.counted_qty === null);
+    if (anyUncounted >= 0) return anyUncounted;
+    return fromIdx < updatedLines.length - 1 ? fromIdx + 1 : fromIdx;
+  };
 
   const countedCount = localLines.filter((l) => l.counted_qty !== null).length;
   const progressPct = localLines.length > 0 ? Math.round((countedCount / localLines.length) * 100) : 0;
@@ -91,30 +113,41 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
 
   const handleSaveAndNext = () => {
     if (!currentLine) return;
+    if (!counterPersonId) {
+      setErrorMsg("Pilih petugas penghitung terlebih dahulu.");
+      return;
+    }
+    setErrorMsg("");
+
+    const trimmedReason = lineReason.trim() || undefined;
+    const cleanQty = roundPrecision(countedQty);
 
     // Mode Offline Langsung
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       enqueueOutboxItem("STOCK_COUNT", {
         lineId: currentLine.id,
-        countedQty,
+        countedQty: cleanQty,
         countedByPersonId: counterPersonId,
       }).then(() => {
         notifyOutboxChanged();
-        setLocalLines((prev) =>
-          prev.map((l, idx) =>
-            idx === currentIndex
-              ? { ...l, counted_qty: countedQty, counted_by_person_id: counterPersonId, status: "COUNTED" }
-              : l
-          )
+        const updated = localLines.map((l, idx) =>
+          idx === currentIndex
+            ? {
+                ...l,
+                counted_qty: cleanQty,
+                counted_by_person_id: counterPersonId,
+                reason: trimmedReason || l.reason,
+                status: "COUNTED",
+              }
+            : l
         );
+        setLocalLines(updated);
 
         if (typeof window !== "undefined" && window.navigator?.vibrate) {
           window.navigator.vibrate(50);
         }
 
-        if (currentIndex < localLines.length - 1) {
-          setCurrentIndex((prev) => prev + 1);
-        }
+        setCurrentIndex(findNextTargetIndex(updated, currentIndex));
       });
       return;
     }
@@ -123,47 +156,55 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
       try {
         const res = await submitCountLineAction({
           lineId: currentLine.id,
-          countedQty,
+          countedQty: cleanQty,
           countedByPersonId: counterPersonId,
+          photoPath: currentLine.photo_path || undefined,
+          reason: trimmedReason,
         });
 
         if (res.success) {
-          setLocalLines((prev) =>
-            prev.map((l, idx) =>
-              idx === currentIndex
-                ? { ...l, counted_qty: countedQty, counted_by_person_id: counterPersonId, status: "COUNTED" }
-                : l
-            )
+          const updated = localLines.map((l, idx) =>
+            idx === currentIndex
+              ? {
+                  ...l,
+                  counted_qty: cleanQty,
+                  counted_by_person_id: counterPersonId,
+                  reason: trimmedReason || l.reason,
+                  status: "COUNTED",
+                }
+              : l
           );
+          setLocalLines(updated);
 
           if (typeof window !== "undefined" && window.navigator?.vibrate) {
             window.navigator.vibrate(50);
           }
 
-          if (currentIndex < localLines.length - 1) {
-            setCurrentIndex((prev) => prev + 1);
-          }
+          setCurrentIndex(findNextTargetIndex(updated, currentIndex));
+        } else {
+          setErrorMsg(res.error || "Gagal menyimpan hasil hitungan fisik.");
         }
       } catch (networkErr) {
         console.warn("Koneksi gagal, menyimpan hitungan ke antrean offline:", networkErr);
         await enqueueOutboxItem("STOCK_COUNT", {
           lineId: currentLine.id,
-          countedQty,
+          countedQty: cleanQty,
           countedByPersonId: counterPersonId,
         });
         notifyOutboxChanged();
 
-        setLocalLines((prev) =>
-          prev.map((l, idx) =>
-            idx === currentIndex
-              ? { ...l, counted_qty: countedQty, counted_by_person_id: counterPersonId, status: "COUNTED" }
-              : l
-          )
+        const updated = localLines.map((l, idx) =>
+          idx === currentIndex
+            ? {
+                ...l,
+                counted_qty: cleanQty,
+                counted_by_person_id: counterPersonId,
+                status: "COUNTED",
+              }
+            : l
         );
-
-        if (currentIndex < localLines.length - 1) {
-          setCurrentIndex((prev) => prev + 1);
-        }
+        setLocalLines(updated);
+        setCurrentIndex(findNextTargetIndex(updated, currentIndex));
       }
     });
   };
@@ -249,7 +290,42 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
             ))}
           </select>
         </div>
+
+        {/* Tombol Cepat Lompat / Selesai Hitung */}
+        {countedCount === localLines.length && localLines.length > 0 ? (
+          <Link
+            href={`/opname/${stockTake.id}`}
+            className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Seluruh {localLines.length} barang selesai dihitung!</span>
+            </span>
+            <span className="underline shrink-0">Lanjut ke Review &rarr;</span>
+          </Link>
+        ) : (
+          localLines.some((l) => l.counted_qty === null) && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetIdx = findNextTargetIndex(localLines, currentIndex);
+                if (targetIdx >= 0) setCurrentIndex(targetIdx);
+              }}
+              className="w-full py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <SkipForward className="w-3.5 h-3.5 text-amber-700" />
+              <span>Lompat ke Barang Belum Dihitung ({localLines.length - countedCount} tersisa)</span>
+            </button>
+          )
+        )}
       </div>
+
+      {errorMsg && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-900 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
       {/* Main Single Card - Focus Mode */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-5 text-center">
@@ -285,6 +361,9 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
               <img
                 src={currentPhotoUrl}
                 alt={currentLine.item?.name}
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
               />
               <div className="absolute bottom-0 inset-x-0 bg-black/50 text-[10px] text-white py-0.5 font-semibold">
@@ -316,7 +395,7 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
-              onClick={() => setCountedQty((prev) => Math.max(0, prev - 1))}
+              onClick={() => setCountedQty((prev) => Math.max(0, Number((prev - 1).toFixed(4))))}
               className="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs active:scale-90 touch-target text-2xl font-bold transition-transform"
               aria-label="Kurangi 1"
             >
@@ -326,11 +405,12 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
             <div className="flex-1">
               <input
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
                 min="0"
+                step="any"
                 value={countedQty}
                 onChange={(e) => {
-                  const val = parseInt(e.target.value);
+                  const val = parseFloat(e.target.value);
                   setCountedQty(isNaN(val) ? 0 : Math.max(0, val));
                 }}
                 className="w-full text-center text-4xl sm:text-5xl font-black text-slate-900 bg-transparent focus:outline-none num-mono tracking-tight"
@@ -342,7 +422,7 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
 
             <button
               type="button"
-              onClick={() => setCountedQty((prev) => prev + 1)}
+              onClick={() => setCountedQty((prev) => Number((prev + 1).toFixed(4)))}
               className="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs active:scale-90 touch-target text-2xl font-bold transition-transform"
               aria-label="Tambah 1"
             >
@@ -359,16 +439,51 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
             >
               Kosong (0)
             </button>
-            {[1, 5, 10, 25, 50, 100].map((inc) => (
+            {(["ml", "cm", "gram", "gr", "meter", "m", "liter"].includes(
+              (currentLine.item?.unit?.name || "").trim().toLowerCase()
+            )
+              ? [10, 50, 100, 250, 500]
+              : [1, 5, 10, 25, 50, 100]
+            ).map((inc) => (
               <button
                 key={inc}
                 type="button"
-                onClick={() => setCountedQty((prev) => prev + inc)}
+                onClick={() => setCountedQty((prev) => Number((prev + inc).toFixed(4)))}
                 className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 text-slate-700 text-xs font-bold touch-target active:scale-95 transition-all shadow-2xs"
               >
                 +{inc}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Foto Bukti Fisik & Catatan Kondisi (Opsional) */}
+        <div className="grid grid-cols-1 gap-2 text-left">
+          <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="flex items-center gap-2 text-xs text-slate-600 min-w-0">
+              <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="truncate font-medium">
+                {currentLine.photo_path ? "Foto bukti sesi terlampir" : "Foto kondisi fisik (opsional)"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPhotoModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-[11px] font-bold text-slate-700 shrink-0"
+            >
+              {currentLine.photo_path ? "Ganti Foto" : "Ambil Foto"}
+            </button>
+          </div>
+
+          <div className="relative">
+            <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={lineReason}
+              onChange={(e) => setLineReason(e.target.value)}
+              placeholder="Catatan kondisi (rusak, terselip, dll — opsional)"
+              className="w-full pl-9 pr-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+            />
           </div>
         </div>
 
@@ -556,6 +671,24 @@ export function HitungClient({ stockTake, lines, people }: HitungClientProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Modal Ambil Foto Bukti Fisik Opname */}
+      {currentLine && (
+        <PhotoCaptureModal
+          isOpen={isPhotoModalOpen}
+          onClose={() => setIsPhotoModalOpen(false)}
+          title={`Foto Kondisi: ${currentLine.item?.name}`}
+          folder="opname"
+          entityId={currentLine.id}
+          onUploadSuccess={async (photoPath) => {
+            setIsPhotoModalOpen(false);
+            setLocalLines((prev) =>
+              prev.map((l) => (l.id === currentLine.id ? { ...l, photo_path: photoPath } : l))
+            );
+            await updateStockTakeLinePhotoAction(currentLine.id, photoPath, stockTake.id);
+          }}
+        />
       )}
 
       {/* Lightbox Modal */}

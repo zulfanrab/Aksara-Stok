@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { getItems, getPeople, getProjects, getCurrentStockMap } from "@/lib/services/inventory";
 import { KeluarClient } from "./KeluarClient";
 import { Navbar } from "@/components/layout/Navbar";
@@ -8,7 +9,13 @@ export const metadata = {
   description: "Form pencatatan barang keluar dan pemakaian lapangan",
 };
 
-export default async function KeluarPage() {
+interface KeluarPageProps {
+  searchParams?: Promise<{ itemId?: string }>;
+}
+
+export default async function KeluarPage({ searchParams }: KeluarPageProps) {
+  await connection();
+  const resolvedParams = searchParams ? await searchParams : {};
   const [items, people, projects, stockMap] = await Promise.all([
     getItems(),
     getPeople(),
@@ -25,6 +32,7 @@ export default async function KeluarPage() {
           people={people}
           projects={projects}
           stockMap={stockMap}
+          initialItemId={resolvedParams.itemId}
         />
       </main>
       <BottomNav />

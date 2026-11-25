@@ -96,7 +96,7 @@ export function Navbar() {
             type="button"
             onClick={() => lockApp()}
             className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 transition-all shadow-2xs touch-target"
-            title="Kunci Aplikasi (PIN 9999)"
+            title="Kunci Layar Aplikasi"
             aria-label="Kunci Aplikasi"
           >
             <Lock className="w-4 h-4 stroke-[2.2]" />
